@@ -1,20 +1,14 @@
-// Vercel serverless function — POST /api/submit-lead
-// Inserts a lead into the Neon `leads` table.
-//
+// Vercel serverless proxy — forwards form submissions to the Render backend.
 // Setup:
-// 1. npm install @neondatabase/serverless
-// 2. In Vercel project settings → Environment Variables, add:
-//      DATABASE_URL = <your Neon connection string from Neon dashboard → Connect>
-// 3. Deploy. This file is auto-detected as /api/submit-lead.
+// 1. In Vercel project settings → Environment Variables, add:
+//      RENDER_API_URL = https://<your-render-service>.onrender.com
+// 2. Deploy. This file is auto-detected as /api/submit-lead.
 
 require('dotenv').config();
 
-const { neon } = require('@neondatabase/serverless');
-
-const DATABASE_URL = process.env.DATABASE_URL;
+const RENDER_API_URL = process.env.RENDER_API_URL;
 
 module.exports = async (req, res) => {
-  // Basic CORS (safe to keep even on same-origin deploys)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,48 +21,28 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!RENDER_API_URL) {
+    return res.status(500).json({ error: 'Render backend URL is not configured.' });
+  }
+
   try {
-    const { name, email, phone, course } = req.body || {};
+    const backendUrl = `${RENDER_API_URL.replace(/\/$/, '')}/submit-lead`;
+    const backendRes = await fetch(backendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body || {})
+    });
 
-    // Server-side validation — never trust the client
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      return res.status(400).json({ error: 'A valid name is required' });
+    const contentType = backendRes.headers.get('content-type') || '';
+    const bodyText = await backendRes.text();
+
+    res.status(backendRes.status);
+    if (contentType.includes('application/json')) {
+      return res.json(JSON.parse(bodyText || '{}'));
     }
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRe.test(email)) {
-      return res.status(400).json({ error: 'A valid email is required' });
-    }
-    const phoneDigits = (phone || '').replace(/[^0-9]/g, '');
-    if (phoneDigits.length < 8) {
-      return res.status(400).json({ error: 'A valid phone number is required' });
-    }
-
-    if (!DATABASE_URL) {
-      return res.status(500).json({ error: 'Database configuration is missing.' });
-    }
-
-    const sql = neon(DATABASE_URL);
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS leads (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        course TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-
-    const result = await sql`
-      INSERT INTO leads (name, email, phone, course)
-      VALUES (${name.trim()}, ${email.trim()}, ${phone.trim()}, ${course || null})
-      RETURNING id, created_at
-    `;
-
-    return res.status(200).json({ success: true, id: result[0].id });
+    return res.send(bodyText);
   } catch (err) {
-    console.error('submit-lead error:', err);
-    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    console.error('submit-lead proxy error:', err);
+    return res.status(500).json({ error: 'Could not forward request to backend.' });
   }
 };
