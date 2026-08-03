@@ -6,7 +6,6 @@
 // 2. In Vercel project settings → Environment Variables, add:
 //      DATABASE_URL = <your Neon connection string from Neon dashboard → Connect>
 // 3. Deploy. This file is auto-detected as /api/submit-lead.
-
 require('dotenv').config();
 
 const { neon } = require('@neondatabase/serverless');
