@@ -692,13 +692,13 @@
     return ok;
   }
 
-  // Snapserve website lead intake URL.
-  const SNAP_SERVE_INTAKE_URL = "https://app.snapserve.ai/api/webhooks/lead/6d03308e-949d-43a4-922c-9f39208dd192";
+  // Local backend endpoint that inserts the lead and triggers the Snapserve call.
+  const FORMSPREE_ENDPOINT = "/api/submit-lead";
 
   window.SnapServe = {
     submit: async ({ phone, name, email, course }) => {
       const payload = { phone, name, email, course: course || null };
-      const response = await fetch(SNAP_SERVE_INTAKE_URL, {
+      const response = await fetch(FORMSPREE_ENDPOINT, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
