@@ -8,6 +8,7 @@ require('dotenv').config();
 
 const { initiateOutboundCall } = require('../snapserve');
 const RENDER_API_URL = process.env.RENDER_API_URL;
+const SNAP_SERVE_INTAKE_URL = process.env.SNAPSERVE_INTAKE_URL || process.env.snapserve_intake_url || '';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -44,6 +45,21 @@ module.exports = async (req, res) => {
         });
       } catch (callErr) {
         console.error('Snapserve call initiation failed:', callErr);
+      }
+    }
+
+    if (backendRes.ok && backendPayload.phone && SNAP_SERVE_INTAKE_URL) {
+      try {
+        await fetch(SNAP_SERVE_INTAKE_URL, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(backendPayload)
+        });
+      } catch (hookErr) {
+        console.error('Snapserve intake forwarding failed:', hookErr);
       }
     }
 
