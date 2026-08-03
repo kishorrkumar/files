@@ -12,6 +12,22 @@ function getSnapserveConfig() {
   };
 }
 
+function getLeadWebhookConfig() {
+  return {
+    webhookUrl: process.env.WEBHOOK_URL || process.env.Web_book_URL || process.env.webhook_url || ''
+  };
+}
+
+function buildLeadWebhookPayload(lead) {
+  return {
+    name: lead?.name || '',
+    email: lead?.email || '',
+    phone: lead?.phone || '',
+    course: lead?.course || null,
+    source: lead?.source || 'landing_page_form'
+  };
+}
+
 function normalizePhoneForSnapserve(phone) {
   if (typeof phone !== 'string') {
     return null;
@@ -75,6 +91,8 @@ async function initiateOutboundCall({ phone, agentId, apiKey }) {
 
 module.exports = {
   getSnapserveConfig,
+  getLeadWebhookConfig,
+  buildLeadWebhookPayload,
   normalizePhoneForSnapserve,
   buildOutboundCallPayload,
   initiateOutboundCall

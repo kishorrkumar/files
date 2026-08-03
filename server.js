@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { neon } = require('@neondatabase/serverless');
-const { initiateOutboundCall } = require('./snapserve');
+const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload } = require('./snapserve');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -64,6 +64,25 @@ app.post('/submit-lead', async (req, res) => {
       }
     } catch (callErr) {
       console.error('Snapserve call initiation failed:', callErr);
+    }
+
+    try {
+      const { webhookUrl } = getLeadWebhookConfig();
+      if (webhookUrl) {
+        const payload = buildLeadWebhookPayload({ name, email, phone, course, source: 'landing_page_form' });
+        const webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!webhookResponse.ok) {
+          const errorText = await webhookResponse.text().catch(() => '');
+          console.error('Lead webhook failed:', webhookResponse.status, errorText);
+        }
+      }
+    } catch (webhookErr) {
+      console.error('Lead webhook submission failed:', webhookErr);
     }
 
     return res.status(200).json({ success: true, id: result[0].id });

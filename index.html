@@ -636,6 +636,9 @@
   <span>Chennai · Bengaluru · Remote</span>
 </footer>
 
+<!-- Snapserve lead capture SDK -->
+<script src="https://app.snapserve.ai/api/widget/lead-capture.js" data-token="99e1a0f2-eb92-4b61-a9ab-7c9f93921d3e"></script>
+
 <script>
   // ---- Expanding course cards ----
   const courseEls = document.querySelectorAll('.course');
@@ -692,27 +695,25 @@
     return ok;
   }
 
-  // Local backend endpoint that inserts the lead and triggers the Snapserve call.
-  const FORMSPREE_ENDPOINT = "/api/submit-lead";
+  // Local backend endpoint that inserts the lead and triggers the Snapserve webhook.
+  const BACKEND_ENDPOINT = "/api/submit-lead";
 
-  window.SnapServe = {
-    submit: async ({ phone, name, email, course }) => {
-      const payload = { phone, name, email, course: course || null };
-      const response = await fetch(FORMSPREE_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.error || 'Submission failed');
-      }
-      return data;
+  async function submitToBackend({ phone, name, email, course }) {
+    const payload = { phone, name, email, course: course || null };
+    const response = await fetch(BACKEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Submission failed');
     }
-  };
+    return data;
+  }
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
@@ -728,8 +729,20 @@
       course: document.getElementById('course').value
     };
 
-    window.SnapServe.submit(payload)
+    submitToBackend(payload)
       .then(() => {
+        // Also submit to Snapserve SDK if available for redundancy
+        if (window.SnapServe && typeof window.SnapServe.submit === 'function') {
+          try {
+            SnapServe.submit({
+              phone: payload.phone,
+              name: payload.name,
+              email: payload.email
+            });
+          } catch (sdkErr) {
+            console.warn('Snapserve SDK submit failed (non-blocking):', sdkErr);
+          }
+        }
         fields.style.display = 'none';
         successBox.classList.add('show');
       })
