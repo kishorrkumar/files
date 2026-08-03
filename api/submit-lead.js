@@ -6,6 +6,7 @@
 
 require('dotenv').config();
 
+const { initiateOutboundCall } = require('../snapserve');
 const RENDER_API_URL = process.env.RENDER_API_URL;
 
 module.exports = async (req, res) => {
@@ -27,11 +28,24 @@ module.exports = async (req, res) => {
 
   try {
     const backendUrl = `${RENDER_API_URL.replace(/\/$/, '')}/submit-lead`;
+    const backendPayload = req.body || {};
     const backendRes = await fetch(backendUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body || {})
+      body: JSON.stringify(backendPayload)
     });
+
+    if (backendRes.ok && backendPayload.phone && process.env.SNAPSERVE_AGENT_ID) {
+      try {
+        await initiateOutboundCall({
+          phone: backendPayload.phone,
+          agentId: process.env.SNAPSERVE_AGENT_ID,
+          apiKey: process.env.SNAPSERVE_API_KEY
+        });
+      } catch (callErr) {
+        console.error('Snapserve call initiation failed:', callErr);
+      }
+    }
 
     const contentType = backendRes.headers.get('content-type') || '';
     const bodyText = await backendRes.text();

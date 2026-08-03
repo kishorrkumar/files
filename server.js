@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { neon } = require('@neondatabase/serverless');
+const { initiateOutboundCall } = require('./snapserve');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -50,6 +51,20 @@ app.post('/submit-lead', async (req, res) => {
       VALUES (${name.trim()}, ${email.trim()}, ${phone.trim()}, ${course || null})
       RETURNING id, created_at
     `;
+
+    try {
+      const agentId = process.env.SNAPSERVE_AGENT_ID || '';
+      if (agentId) {
+        const call = await initiateOutboundCall({
+          phone,
+          agentId,
+          apiKey: process.env.SNAPSERVE_API_KEY
+        });
+        console.log('Snapserve call initiated:', call);
+      }
+    } catch (callErr) {
+      console.error('Snapserve call initiation failed:', callErr);
+    }
 
     return res.status(200).json({ success: true, id: result[0].id });
   } catch (err) {
