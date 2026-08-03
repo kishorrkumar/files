@@ -692,13 +692,13 @@
     return ok;
   }
 
-  // Serverless function (Vercel) that inserts directly into the Neon `leads` table.
-  const FORMSPREE_ENDPOINT = "/api/submit-lead";
+  // Snapserve website lead intake URL.
+  const SNAP_SERVE_INTAKE_URL = "https://app.snapserve.ai/api/webhooks/lead/6d03308e-949d-43a4-922c-9f39208dd192";
 
   window.SnapServe = {
     submit: async ({ phone, name, email, course }) => {
       const payload = { phone, name, email, course: course || null };
-      const response = await fetch(FORMSPREE_ENDPOINT, {
+      const response = await fetch(SNAP_SERVE_INTAKE_URL, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -728,25 +728,16 @@
       course: document.getElementById('course').value
     };
 
-    fetch(FORMSPREE_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(async res => {
-      const data = await res.json().catch(() => ({}));
-      if(res.ok){
+    window.SnapServe.submit(payload)
+      .then(() => {
         fields.style.display = 'none';
         successBox.classList.add('show');
-      } else {
-        throw new Error(data.error || 'Submission failed');
-      }
-    })
-    .catch((err) => {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit my details';
-      setError('email', err.message || 'Something went wrong — please try again.');
-    });
+      })
+      .catch((err) => {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit my details';
+        setError('email', err.message || 'Something went wrong — please try again.');
+      });
   });
 </script>
 
