@@ -695,6 +695,25 @@
   // Serverless function (Vercel) that inserts directly into the Neon `leads` table.
   const FORMSPREE_ENDPOINT = "/api/submit-lead";
 
+  window.SnapServe = {
+    submit: async ({ phone, name, email, course }) => {
+      const payload = { phone, name, email, course: course || null };
+      const response = await fetch(FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Submission failed');
+      }
+      return data;
+    }
+  };
+
   form.addEventListener('submit', function(e){
     e.preventDefault();
     if(!validate()) return;
