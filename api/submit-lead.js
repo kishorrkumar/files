@@ -45,7 +45,8 @@ module.exports = async (req, res) => {
           name: backendPayload.name || '',
           email: backendPayload.email || '',
           phone: backendPayload.phone || '',
-          course: backendPayload.course || null
+          course: backendPayload.course || null,
+          agent: backendPayload.agent || null
         });
       } catch (csvErr) {
         console.error('CSV fallback storage failed:', csvErr);

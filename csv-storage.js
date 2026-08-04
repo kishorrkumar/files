@@ -54,7 +54,7 @@ async function ensureCsvFile(csvPath) {
   await fsPromises.mkdir(directory, { recursive: true });
 
   if (!fs.existsSync(csvPath)) {
-    await fsPromises.writeFile(csvPath, 'id,name,email,phone,course,created_at\n', 'utf8');
+    await fsPromises.writeFile(csvPath, 'id,name,email,phone,course,agent,created_at\n', 'utf8');
   }
 }
 
@@ -71,6 +71,7 @@ async function appendLead(csvPath, lead) {
     lead.email || '',
     lead.phone || '',
     lead.course || '',
+    lead.agent || '',
     createdAt
   ]
     .map(escapeCsvValue)
@@ -84,6 +85,7 @@ async function appendLead(csvPath, lead) {
     email: lead.email || '',
     phone: lead.phone || '',
     course: lead.course || '',
+    agent: lead.agent || '',
     created_at: createdAt
   };
 }
@@ -106,13 +108,14 @@ async function getLeads(csvPath) {
   }
 
   return lines.slice(1).map((line) => {
-    const [id, name, email, phone, course, createdAt] = parseCsvLine(line);
+    const [id, name, email, phone, course, agent, createdAt] = parseCsvLine(line);
     return {
       id: Number(id),
       name,
       email,
       phone,
       course,
+      agent,
       created_at: createdAt
     };
   });

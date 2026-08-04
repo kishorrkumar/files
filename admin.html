@@ -106,6 +106,28 @@
   <main class="page">
     <section class="card">
       <div class="header">
+        <h1>Available Agents</h1>
+        <button id="refreshAgentsBtn" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table id="agentsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Language</th>
+              <th>Model</th>
+            </tr>
+          </thead>
+          <tbody id="agentsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <div class="header">
         <h1>Lead Admin Panel</h1>
         <button id="refreshBtn" type="button">Refresh</button>
       </div>
@@ -118,6 +140,8 @@
               <th>Email</th>
               <th>Phone</th>
               <th>Course</th>
+              <th>Agent</th>
+              <th>Agent</th>
               <th>Submitted</th>
             </tr>
           </thead>
@@ -128,11 +152,43 @@
   </main>
 
   <script>
+    const agentsBody = document.getElementById('agentsBody');
+    const refreshAgentsBtn = document.getElementById('refreshAgentsBtn');
     const leadsBody = document.getElementById('leadsBody');
     const refreshBtn = document.getElementById('refreshBtn');
 
+    async function loadAgents() {
+      agentsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading agents…</td></tr>';
+
+      try {
+        const response = await fetch('/agents');
+        if (!response.ok) {
+          throw new Error('Unable to load agents');
+        }
+
+        const agents = await response.json();
+        if (!agents.length) {
+          agentsBody.innerHTML = '<tr><td colspan="6" class="empty">No agents available.</td></tr>';
+          return;
+        }
+
+        agentsBody.innerHTML = agents.map((agent) => `
+          <tr>
+            <td>#${agent.id}</td>
+            <td>${agent.name || '—'}</td>
+            <td>${agent.agentType || '—'}</td>
+            <td><span class="badge">${agent.status || 'unknown'}</span></td>
+            <td>${agent.language || '—'}</td>
+            <td>${agent.llmModel || '—'}</td>
+          </tr>
+        `).join('');
+      } catch (error) {
+        agentsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
+      }
+    }
+
     async function loadLeads() {
-      leadsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading leads…</td></tr>';
+      leadsBody.innerHTML = '<tr><td colspan="7" class="empty">Loading leads…</td></tr>';
 
       try {
         const response = await fetch('/leads');
@@ -142,7 +198,7 @@
 
         const leads = await response.json();
         if (!leads.length) {
-          leadsBody.innerHTML = '<tr><td colspan="6" class="empty">No leads have been submitted yet.</td></tr>';
+          leadsBody.innerHTML = '<tr><td colspan="7" class="empty">No leads have been submitted yet.</td></tr>';
           return;
         }
 
@@ -153,15 +209,18 @@
             <td>${lead.email || '—'}</td>
             <td>${lead.phone || '—'}</td>
             <td>${lead.course ? `<span class="badge">${lead.course}</span>` : '—'}</td>
+            <td>${lead.agent ? `<span class="badge">${lead.agent}</span>` : '—'}</td>
             <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
           </tr>
         `).join('');
       } catch (error) {
-        leadsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
-      }
+        leadsBody.innerHTML = `<tr><td colspan="7" class="empty">${error.message}</td></tr>`;      }
     }
 
+    refreshAgentsBtn.addEventListener('click', loadAgents);
     refreshBtn.addEventListener('click', loadLeads);
+    
+    loadAgents();
     loadLeads();
   </script>
 </body>

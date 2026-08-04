@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
-const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload } = require('./snapserve');
+const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
 const { appendLead, getLeads } = require('./csv-storage');
 
 const app = express();
@@ -13,7 +13,7 @@ app.use(express.json());
 
 app.post('/submit-lead', async (req, res) => {
 
-  const { name, email, phone, course } = req.body || {};
+  const { name, email, phone, course, agent } = req.body || {};
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
     return res.status(400).json({ error: 'A valid name is required' });
@@ -34,7 +34,8 @@ app.post('/submit-lead', async (req, res) => {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      course: course || null
+      course: course || null,
+      agent: agent || null
     });
 
     try {
@@ -74,6 +75,16 @@ app.post('/submit-lead', async (req, res) => {
   } catch (err) {
     console.error('submit-lead error:', err);
     return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+app.get('/agents', async (req, res) => {
+  try {
+    const agents = await fetchSnapserveAgents();
+    return res.status(200).json(agents);
+  } catch (err) {
+    console.error('get-agents error:', err);
+    return res.status(500).json({ error: 'Could not fetch agents.' });
   }
 });
 

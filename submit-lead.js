@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { name, email, phone, course } = req.body || {};
+    const { name, email, phone, course, agent } = req.body || {};
 
     // Server-side validation — never trust the client
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -41,7 +41,8 @@ module.exports = async (req, res) => {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      course: course || null
+      course: course || null,
+      agent: agent || null
     });
 
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });

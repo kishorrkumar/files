@@ -89,11 +89,42 @@ async function initiateOutboundCall({ phone, agentId, apiKey }) {
   return data;
 }
 
+async function fetchSnapserveAgents() {
+  const config = getSnapserveConfig();
+  const { apiKey } = config;
+
+  if (!apiKey) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(`${SNAPSERVE_API_BASE_URL.replace(/\/$/, '')}/agents`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error('Failed to fetch Snapserve agents:', response.status);
+      return [];
+    }
+
+    const agents = await response.json().catch(() => []);
+    return Array.isArray(agents) ? agents : [];
+  } catch (err) {
+    console.error('Error fetching Snapserve agents:', err);
+    return [];
+  }
+}
+
 module.exports = {
   getSnapserveConfig,
   getLeadWebhookConfig,
   buildLeadWebhookPayload,
   normalizePhoneForSnapserve,
   buildOutboundCallPayload,
-  initiateOutboundCall
+  initiateOutboundCall,
+  fetchSnapserveAgents
 };
