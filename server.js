@@ -178,7 +178,66 @@ app.post('/call-lead', async (req, res) => {
 
 app.get('/calls', async (req, res) => {
   try {
-    const calls = await getCalls(CALLS_PATH);
+    let calls = await getCalls(CALLS_PATH);
+
+    const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
+    if (apiKey) {
+      try {
+        const response = await fetch('https://app.snapserve.ai/api/calls?limit=100', {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const snapserveCalls = await response.json();
+          if (Array.isArray(snapserveCalls)) {
+            let newCallsFound = false;
+            // Sort ascending to append in correct chronological order
+            snapserveCalls.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+            for (const call of snapserveCalls) {
+              const callTime = new Date(call.createdAt).getTime();
+              // Check if call already exists in local CSV
+              const exists = calls.some(c =>
+                c.phone === call.toNumber &&
+                String(c.agent_id) === String(call.agentId) &&
+                Math.abs(new Date(c.created_at).getTime() - callTime) < 5000
+              );
+
+              if (!exists) {
+                let recordingUrl = call.recordingUrl || '';
+                if (recordingUrl && recordingUrl.startsWith('/')) {
+                  recordingUrl = `https://app.snapserve.ai${recordingUrl}`;
+                }
+
+                await appendCall(CALLS_PATH, {
+                  agent_id: String(call.agentId || ''),
+                  agent_name: call.agentName || '',
+                  phone: call.toNumber || '',
+                  duration: call.durationSeconds || 0,
+                  summary: call.callSummary || '',
+                  success_evaluation: call.successEvaluation || '',
+                  recording_url: recordingUrl,
+                  transcript: call.transcript || '',
+                  status: call.status || 'completed',
+                  created_at: call.createdAt
+                });
+                newCallsFound = true;
+              }
+            }
+
+            if (newCallsFound) {
+              calls = await getCalls(CALLS_PATH);
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync calls from Snapserve API:', syncErr);
+      }
+    }
+
     return res.status(200).json(calls);
   } catch (err) {
     console.error('get-calls error:', err);
