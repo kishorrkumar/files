@@ -62,7 +62,10 @@ module.exports = async (req, res) => {
       const renderWebhookUrl = `${RENDER_API_URL.replace(/\/$/, '')}/webhook/snapserve`;
       await fetch(renderWebhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-snapserve-webhook-secret': receivedSecret || WEBHOOK_SECRET
+        },
         body: JSON.stringify(body)
       });
     } catch (renderErr) {
