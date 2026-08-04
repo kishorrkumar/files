@@ -6,9 +6,12 @@
 
 require('dotenv').config();
 
+const path = require('path');
+const { appendLead } = require('../csv-storage');
 const { initiateOutboundCall } = require('../snapserve');
 const RENDER_API_URL = process.env.RENDER_API_URL;
 const SNAP_SERVE_INTAKE_URL = process.env.SNAPSERVE_INTAKE_URL || process.env.snapserve_intake_url || '';
+const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, '..', 'data', 'leads.csv');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,6 +38,19 @@ module.exports = async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(backendPayload)
     });
+
+    if (backendRes.ok) {
+      try {
+        await appendLead(CSV_PATH, {
+          name: backendPayload.name || '',
+          email: backendPayload.email || '',
+          phone: backendPayload.phone || '',
+          course: backendPayload.course || null
+        });
+      } catch (csvErr) {
+        console.error('CSV fallback storage failed:', csvErr);
+      }
+    }
 
     if (backendRes.ok && backendPayload.phone && process.env.SNAPSERVE_AGENT_ID) {
       try {
