@@ -4,12 +4,48 @@ const express = require('express');
 const path = require('path');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
 const { appendLead, getLeads } = require('./csv-storage');
+const { appendCall, getCalls } = require('./call-storage');
 
 const app = express();
 const port = process.env.PORT || 3000;
 const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, 'data', 'leads.csv');
+const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'calls.csv');
 
 app.use(express.json());
+
+const handleSnapserveWebhook = async (req, res) => {
+  const body = req.body || {};
+  console.log('Received Snapserve webhook:', JSON.stringify(body));
+
+  const agent_id = body.agent_id || body.agentId || body.agent?.id || body.call?.agentId || '';
+  const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
+  const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
+  const duration = Number(body.duration || body.callDuration || body.call?.duration || 0);
+  const summary = body.summary || body.call_summary || body.callSummary || body.call?.summary || body.analysis?.summary || '';
+  const transcript = body.transcript || body.call_transcript || body.callTranscript || body.call?.transcript || body.analysis?.transcript || (Array.isArray(body.messages) ? body.messages.map(m => `${m.role || m.speaker}: ${m.text || m.content}`).join('\n') : '');
+  const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
+
+  try {
+    const result = await appendCall(CALLS_PATH, {
+      agent_id,
+      agent_name,
+      phone,
+      duration,
+      summary,
+      transcript,
+      status
+    });
+    console.log('Saved call record to CSV:', result);
+    return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
+  } catch (err) {
+    console.error('Error saving call record:', err);
+    return res.status(500).json({ error: 'Failed to process webhook' });
+  }
+};
+
+app.post('/webhook/snapserve', handleSnapserveWebhook);
+app.post('/webhook', handleSnapserveWebhook);
+app.post('/api/webhook/snapserve', handleSnapserveWebhook);
 
 app.post('/submit-lead', async (req, res) => {
 
@@ -95,6 +131,16 @@ app.get('/leads', async (req, res) => {
   } catch (err) {
     console.error('get-leads error:', err);
     return res.status(500).json({ error: 'Could not read leads.' });
+  }
+});
+
+app.get('/calls', async (req, res) => {
+  try {
+    const calls = await getCalls(CALLS_PATH);
+    return res.status(200).json(calls);
+  } catch (err) {
+    console.error('get-calls error:', err);
+    return res.status(500).json({ error: 'Could not read calls.' });
   }
 });
 

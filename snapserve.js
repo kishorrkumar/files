@@ -94,10 +94,13 @@ async function fetchSnapserveAgents() {
   const { apiKey } = config;
 
   if (!apiKey) {
+    console.warn('[Snapserve] No API key configured');
     return [];
   }
 
   try {
+    console.log('[Snapserve] Fetching agents from API...');
+    console.log('[Snapserve] API Key (first 30):', apiKey.substring(0, 30));
     const response = await fetch(`${SNAPSERVE_API_BASE_URL.replace(/\/$/, '')}/agents`, {
       method: 'GET',
       headers: {
@@ -107,14 +110,15 @@ async function fetchSnapserveAgents() {
     });
 
     if (!response.ok) {
-      console.error('Failed to fetch Snapserve agents:', response.status);
+      console.error('[Snapserve] Failed with status:', response.status);
       return [];
     }
 
-    const agents = await response.json().catch(() => []);
+    const agents = await response.json();
+    console.log('[Snapserve] Got agents:', Array.isArray(agents) ? agents.length + ' agents' : 'invalid format');
     return Array.isArray(agents) ? agents : [];
   } catch (err) {
-    console.error('Error fetching Snapserve agents:', err);
+    console.error('[Snapserve] Error:', err.message);
     return [];
   }
 }

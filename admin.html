@@ -141,11 +141,34 @@
               <th>Phone</th>
               <th>Course</th>
               <th>Agent</th>
-              <th>Agent</th>
               <th>Submitted</th>
             </tr>
           </thead>
           <tbody id="leadsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <div class="header">
+        <h1>Snapserve Call Summaries & Details</h1>
+        <button id="refreshCallsBtn" type="button">Refresh Calls</button>
+      </div>
+      <div class="table-wrap">
+        <table id="callsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Agent</th>
+              <th>Phone</th>
+              <th>Duration</th>
+              <th>Status</th>
+              <th>Summary</th>
+              <th>Transcript</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="callsBody"></tbody>
         </table>
       </div>
     </section>
@@ -156,6 +179,8 @@
     const refreshAgentsBtn = document.getElementById('refreshAgentsBtn');
     const leadsBody = document.getElementById('leadsBody');
     const refreshBtn = document.getElementById('refreshBtn');
+    const callsBody = document.getElementById('callsBody');
+    const refreshCallsBtn = document.getElementById('refreshCallsBtn');
 
     async function loadAgents() {
       agentsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading agents…</td></tr>';
@@ -214,14 +239,56 @@
           </tr>
         `).join('');
       } catch (error) {
-        leadsBody.innerHTML = `<tr><td colspan="7" class="empty">${error.message}</td></tr>`;      }
+        leadsBody.innerHTML = `<tr><td colspan="7" class="empty">${error.message}</td></tr>`;
+      }
+    }
+
+    async function loadCalls() {
+      callsBody.innerHTML = '<tr><td colspan="8" class="empty">Loading call records…</td></tr>';
+
+      try {
+        const response = await fetch('/calls');
+        if (!response.ok) {
+          throw new Error('Unable to load call logs');
+        }
+
+        const calls = await response.json();
+        if (!calls.length) {
+          callsBody.innerHTML = '<tr><td colspan="8" class="empty">No call records recorded yet.</td></tr>';
+          return;
+        }
+
+        callsBody.innerHTML = calls.map((call) => `
+          <tr>
+            <td>#${call.id}</td>
+            <td>${call.agent_name || call.agent_id ? `<span class="badge">${call.agent_name || call.agent_id}</span>` : '—'}</td>
+            <td>${call.phone || '—'}</td>
+            <td>${call.duration ? call.duration + 's' : '0s'}</td>
+            <td><span class="badge" style="background:${call.status === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${call.status === 'completed' ? '#1f7a1e' : '#c52828'};">${call.status || 'unknown'}</span></td>
+            <td style="max-width: 250px; font-size: 0.9rem;">${call.summary || '—'}</td>
+            <td style="max-width: 250px;">
+              ${call.transcript ? `
+                <details>
+                  <summary style="cursor:pointer; color:var(--accent); font-weight:600; font-size:0.85rem;">View Transcript</summary>
+                  <pre style="white-space:pre-wrap; font-size:0.8rem; background:#f5f3ff; padding:8px; border-radius:6px; margin-top:6px; max-height:150px; overflow-y:auto;">${call.transcript}</pre>
+                </details>
+              ` : '—'}
+            </td>
+            <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
+          </tr>
+        `).join('');
+      } catch (error) {
+        callsBody.innerHTML = `<tr><td colspan="8" class="empty">${error.message}</td></tr>`;
+      }
     }
 
     refreshAgentsBtn.addEventListener('click', loadAgents);
     refreshBtn.addEventListener('click', loadLeads);
-    
+    refreshCallsBtn.addEventListener('click', loadCalls);
+
     loadAgents();
     loadLeads();
+    loadCalls();
   </script>
 </body>
 </html>
