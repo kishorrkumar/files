@@ -615,13 +615,6 @@
               </select>
               <div class="err" id="err-course"></div>
             </div>
-            <div class="field">
-              <label for="agent">Preferred agent</label>
-              <select id="agent" name="agent">
-                <option value="">Loading agents...</option>
-              </select>
-              <div class="err" id="err-agent"></div>
-            </div>
 
             <button type="submit" class="submit-btn" id="submitBtn">Submit my details</button>
             <p class="form-note">By submitting, you agree to be contacted by ThinkCreator Academy.</p>
@@ -722,23 +715,6 @@
     return data;
   }
 
-  // Load available agents from backend
-  async function loadAgents() {
-    try {
-      const response = await fetch('/agents');
-      if (!response.ok) return;
-      const agents = await response.json();
-      if (!Array.isArray(agents) || agents.length === 0) return;
-      
-      const agentSelect = document.getElementById('agent');
-      agentSelect.innerHTML = '<option value="">Select an agent (optional)</option>' +
-        agents.map(a => `<option value="${a.id}">${a.name || `Agent ${a.id}`}</option>`).join('');
-    } catch (err) {
-      console.error('Failed to load agents:', err);
-    }
-  }
-  loadAgents();
-
   form.addEventListener('submit', function(e){
     e.preventDefault();
     if(!validate()) return;
@@ -750,8 +726,7 @@
       name: document.getElementById('name').value.trim(),
       email: document.getElementById('email').value.trim(),
       phone: document.getElementById('phone').value.trim(),
-      course: document.getElementById('course').value,
-      agent: document.getElementById('agent').value
+      course: document.getElementById('course').value
     };
 
     submitToBackend(payload)

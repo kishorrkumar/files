@@ -100,6 +100,37 @@
       font-size: 0.8rem;
       font-weight: 600;
     }
+
+    .agent-select {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fdfbf7;
+      font-size: 0.85rem;
+      color: var(--ink);
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .call-btn {
+      border: none;
+      background: var(--ink);
+      color: var(--bg);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+    .call-btn:hover {
+      background: var(--accent);
+    }
+    .call-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -128,7 +159,7 @@
 
     <section class="card" style="margin-top: 28px;">
       <div class="header">
-        <h1>Lead Admin Panel</h1>
+        <h1>Lead Admin Panel - Assign Agent & Call</h1>
         <button id="refreshBtn" type="button">Refresh</button>
       </div>
       <div class="table-wrap">
@@ -140,7 +171,8 @@
               <th>Email</th>
               <th>Phone</th>
               <th>Course</th>
-              <th>Agent</th>
+              <th>Assign Agent</th>
+              <th>Action</th>
               <th>Submitted</th>
             </tr>
           </thead>
@@ -182,6 +214,8 @@
     const callsBody = document.getElementById('callsBody');
     const refreshCallsBtn = document.getElementById('refreshCallsBtn');
 
+    let availableAgents = [];
+
     async function loadAgents() {
       agentsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading agents…</td></tr>';
 
@@ -192,12 +226,14 @@
         }
 
         const agents = await response.json();
-        if (!agents.length) {
+        availableAgents = Array.isArray(agents) ? agents : [];
+
+        if (!availableAgents.length) {
           agentsBody.innerHTML = '<tr><td colspan="6" class="empty">No agents available.</td></tr>';
           return;
         }
 
-        agentsBody.innerHTML = agents.map((agent) => `
+        agentsBody.innerHTML = availableAgents.map((agent) => `
           <tr>
             <td>#${agent.id}</td>
             <td>${agent.name || '—'}</td>
@@ -207,13 +243,16 @@
             <td>${agent.llmModel || '—'}</td>
           </tr>
         `).join('');
+
+        // Reload leads to populate agent options in leads table
+        loadLeads();
       } catch (error) {
         agentsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
       }
     }
 
     async function loadLeads() {
-      leadsBody.innerHTML = '<tr><td colspan="7" class="empty">Loading leads…</td></tr>';
+      leadsBody.innerHTML = '<tr><td colspan="8" class="empty">Loading leads…</td></tr>';
 
       try {
         const response = await fetch('/leads');
@@ -223,23 +262,83 @@
 
         const leads = await response.json();
         if (!leads.length) {
-          leadsBody.innerHTML = '<tr><td colspan="7" class="empty">No leads have been submitted yet.</td></tr>';
+          leadsBody.innerHTML = '<tr><td colspan="8" class="empty">No leads have been submitted yet.</td></tr>';
           return;
         }
 
-        leadsBody.innerHTML = leads.map((lead) => `
-          <tr>
-            <td>#${lead.id}</td>
-            <td>${lead.name || '—'}</td>
-            <td>${lead.email || '—'}</td>
-            <td>${lead.phone || '—'}</td>
-            <td>${lead.course ? `<span class="badge">${lead.course}</span>` : '—'}</td>
-            <td>${lead.agent ? `<span class="badge">${lead.agent}</span>` : '—'}</td>
-            <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
-          </tr>
-        `).join('');
+        leadsBody.innerHTML = leads.map((lead) => {
+          const agentOptionsHtml = availableAgents.length > 0
+            ? availableAgents.map(a => `
+                <option value="${a.id}" ${String(lead.agent) === String(a.id) ? 'selected' : ''}>
+                  ${a.name ? `${a.name} (#${a.id})` : `Agent #${a.id}`}
+                </option>
+              `).join('')
+            : `<option value="${lead.agent || ''}">${lead.agent ? `Agent #${lead.agent}` : 'Select Agent'}</option>`;
+
+          return `
+            <tr>
+              <td>#${lead.id}</td>
+              <td>${lead.name || '—'}</td>
+              <td>${lead.email || '—'}</td>
+              <td>${lead.phone || '—'}</td>
+              <td>${lead.course ? `<span class="badge">${lead.course}</span>` : '—'}</td>
+              <td>
+                <select id="agent-select-${lead.id}" class="agent-select">
+                  <option value="">Choose Agent</option>
+                  ${agentOptionsHtml}
+                </select>
+              </td>
+              <td>
+                <button class="call-btn" id="call-btn-${lead.id}" type="button" onclick="triggerCallForLead(${lead.id}, '${lead.phone}')">
+                  📞 Call Student
+                </button>
+              </td>
+              <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
+            </tr>
+          `;
+        }).join('');
       } catch (error) {
-        leadsBody.innerHTML = `<tr><td colspan="7" class="empty">${error.message}</td></tr>`;
+        leadsBody.innerHTML = `<tr><td colspan="8" class="empty">${error.message}</td></tr>`;
+      }
+    }
+
+    async function triggerCallForLead(leadId, phone) {
+      const select = document.getElementById(`agent-select-${leadId}`);
+      const callBtn = document.getElementById(`call-btn-${leadId}`);
+      const agentId = select ? select.value : '';
+
+      if (!agentId) {
+        alert('Please select an agent from the dropdown first.');
+        return;
+      }
+
+      callBtn.disabled = true;
+      callBtn.textContent = 'Calling…';
+
+      try {
+        const response = await fetch('/call-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadId, agentId, phone })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to initiate call');
+        }
+
+        callBtn.textContent = 'Call Placed ✓';
+        setTimeout(() => {
+          callBtn.disabled = false;
+          callBtn.textContent = '📞 Call Student';
+        }, 3000);
+
+        // Refresh call logs
+        loadCalls();
+      } catch (err) {
+        alert('Error initiating call: ' + err.message);
+        callBtn.disabled = false;
+        callBtn.textContent = '📞 Call Student';
       }
     }
 
@@ -287,7 +386,6 @@
     refreshCallsBtn.addEventListener('click', loadCalls);
 
     loadAgents();
-    loadLeads();
     loadCalls();
   </script>
 </body>

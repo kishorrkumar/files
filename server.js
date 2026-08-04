@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
-const { appendLead, getLeads } = require('./csv-storage');
+const { appendLead, getLeads, updateLeadAgent } = require('./csv-storage');
 const { appendCall, getCalls } = require('./call-storage');
 
 const app = express();
@@ -143,6 +143,32 @@ app.get('/leads', async (req, res) => {
   } catch (err) {
     console.error('get-leads error:', err);
     return res.status(500).json({ error: 'Could not read leads.' });
+  }
+});
+
+app.post('/call-lead', async (req, res) => {
+  const { leadId, agentId, phone } = req.body || {};
+
+  if (!phone || !agentId) {
+    return res.status(400).json({ error: 'Phone number and agent ID are required.' });
+  }
+
+  try {
+    if (leadId) {
+      await updateLeadAgent(CSV_PATH, leadId, agentId);
+    }
+
+    const call = await initiateOutboundCall({
+      phone,
+      agentId,
+      apiKey: process.env.SNAPSERVE_API_KEY
+    });
+    console.log(`Admin initiated call for lead #${leadId || 'N/A'} with agent ${agentId}:`, call);
+
+    return res.status(200).json({ success: true, call });
+  } catch (err) {
+    console.error('Admin call initiation failed:', err);
+    return res.status(500).json({ error: err.message || 'Could not initiate call' });
   }
 });
 

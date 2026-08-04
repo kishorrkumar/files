@@ -121,7 +121,41 @@ async function getLeads(csvPath) {
   });
 }
 
+async function updateLeadAgent(csvPath, leadId, agentId) {
+  const resolvedPath = resolveCsvPath(csvPath);
+  if (!fs.existsSync(resolvedPath)) {
+    return null;
+  }
+
+  const leads = await getLeads(resolvedPath);
+  const targetLead = leads.find((l) => String(l.id) === String(leadId));
+  if (!targetLead) {
+    return null;
+  }
+
+  targetLead.agent = agentId;
+
+  const header = 'id,name,email,phone,course,agent,created_at\n';
+  const rows = leads.map((l) =>
+    [
+      l.id,
+      l.name || '',
+      l.email || '',
+      l.phone || '',
+      l.course || '',
+      l.agent || '',
+      l.created_at || ''
+    ]
+      .map(escapeCsvValue)
+      .join(',')
+  );
+
+  await fsPromises.writeFile(resolvedPath, header + rows.join('\n') + '\n', 'utf8');
+  return targetLead;
+}
+
 module.exports = {
   appendLead,
-  getLeads
+  getLeads,
+  updateLeadAgent
 };
