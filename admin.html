@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel - Leads</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f1e7;
+      --card: #ffffff;
+      --ink: #15141c;
+      --muted: #6f6b7a;
+      --accent: #6f4ff2;
+      --border: #e7dfd0;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 18px 40px -24px rgba(21, 20, 28, 0.25);
+      overflow: hidden;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--border);
+      background: #fcfaf5;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+
+    .header button {
+      border: none;
+      background: var(--accent);
+      color: white;
+      border-radius: 999px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .table-wrap {
+      padding: 20px 28px 28px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #efe7ff;
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <div class="header">
+        <h1>Lead Admin Panel</h1>
+        <button id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table id="leadsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Course</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody id="leadsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const leadsBody = document.getElementById('leadsBody');
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    async function loadLeads() {
+      leadsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading leads…</td></tr>';
+
+      try {
+        const response = await fetch('/leads');
+        if (!response.ok) {
+          throw new Error('Unable to load leads');
+        }
+
+        const leads = await response.json();
+        if (!leads.length) {
+          leadsBody.innerHTML = '<tr><td colspan="6" class="empty">No leads have been submitted yet.</td></tr>';
+          return;
+        }
+
+        leadsBody.innerHTML = leads.map((lead) => `
+          <tr>
+            <td>#${lead.id}</td>
+            <td>${lead.name || '—'}</td>
+            <td>${lead.email || '—'}</td>
+            <td>${lead.phone || '—'}</td>
+            <td>${lead.course ? `<span class="badge">${lead.course}</span>` : '—'}</td>
+            <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
+          </tr>
+        `).join('');
+      } catch (error) {
+        leadsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
+      }
+    }
+
+    refreshBtn.addEventListener('click', loadLeads);
+    loadLeads();
+  </script>
+</body>
+</html>
