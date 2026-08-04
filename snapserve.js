@@ -53,23 +53,32 @@ function normalizePhoneForSnapserve(phone) {
   return `+${digits}`;
 }
 
-function buildOutboundCallPayload(phone, agentId) {
-  return {
-    agentId,
+function buildOutboundCallPayload(phone, agentId, webhookBaseUrl) {
+  const parsedAgentId = !isNaN(Number(agentId)) && agentId !== '' ? Number(agentId) : agentId;
+  const payload = {
+    agentId: parsedAgentId,
     toNumber: normalizePhoneForSnapserve(phone)
   };
+
+  if (webhookBaseUrl) {
+    payload.webhookBaseUrl = webhookBaseUrl;
+  }
+
+  return payload;
 }
 
-async function initiateOutboundCall({ phone, agentId, apiKey }) {
+async function initiateOutboundCall({ phone, agentId, apiKey, webhookBaseUrl }) {
   const config = getSnapserveConfig();
   const resolvedApiKey = apiKey || config.apiKey;
   const resolvedAgentId = agentId || config.agentId;
+  const resolvedWebhookBaseUrl = webhookBaseUrl || process.env.WEBHOOK_BASE_URL || process.env.RENDER_API_URL || '';
 
   if (!resolvedApiKey) {
     throw new Error('SNAPSERVE_API_KEY is not configured');
   }
 
-  const payload = buildOutboundCallPayload(phone, resolvedAgentId);
+  const payload = buildOutboundCallPayload(phone, resolvedAgentId, resolvedWebhookBaseUrl);
+  console.log('[Snapserve Outbound Payload]', JSON.stringify(payload));
 
   const response = await fetch(`${SNAPSERVE_API_BASE_URL.replace(/\/$/, '')}/calls/outbound`, {
     method: 'POST',
@@ -83,7 +92,9 @@ async function initiateOutboundCall({ phone, agentId, apiKey }) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || 'Failed to initiate Snapserve call');
+    const detail = data.message || data.error || (typeof data === 'object' && Object.keys(data).length ? JSON.stringify(data) : '') || `HTTP ${response.status}`;
+    console.error('[Snapserve Call Error]', response.status, data);
+    throw new Error(`Snapserve API error (${response.status}): ${detail}`);
   }
 
   return data;
