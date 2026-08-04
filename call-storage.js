@@ -55,7 +55,7 @@ async function ensureCallsFile(callsPath) {
   if (!fs.existsSync(callsPath)) {
     await fsPromises.writeFile(
       callsPath,
-      'id,agent_id,agent_name,phone,duration,summary,transcript,status,created_at\n',
+      'id,agent_id,agent_name,phone,duration,summary,success_evaluation,transcript,status,created_at\n',
       'utf8'
     );
   }
@@ -76,6 +76,7 @@ async function appendCall(callsPath, callData) {
     callData.phone || '',
     callData.duration || 0,
     callData.summary || '',
+    callData.success_evaluation || '',
     callData.transcript || '',
     callData.status || 'completed',
     createdAt
@@ -92,6 +93,7 @@ async function appendCall(callsPath, callData) {
     phone: callData.phone || '',
     duration: callData.duration || 0,
     summary: callData.summary || '',
+    success_evaluation: callData.success_evaluation || '',
     transcript: callData.transcript || '',
     status: callData.status || 'completed',
     created_at: createdAt
@@ -115,19 +117,40 @@ async function getCalls(callsPath) {
     return [];
   }
 
+  const headers = parseCsvLine(lines[0]);
+  const hasSuccessEval = headers.includes('success_evaluation');
+
   return lines.slice(1).map((line) => {
-    const [id, agent_id, agent_name, phone, duration, summary, transcript, status, created_at] = parseCsvLine(line);
-    return {
-      id: Number(id),
-      agent_id,
-      agent_name,
-      phone,
-      duration: Number(duration) || 0,
-      summary,
-      transcript,
-      status,
-      created_at
-    };
+    const parsed = parseCsvLine(line);
+    if (hasSuccessEval) {
+      const [id, agent_id, agent_name, phone, duration, summary, success_evaluation, transcript, status, created_at] = parsed;
+      return {
+        id: Number(id),
+        agent_id,
+        agent_name,
+        phone,
+        duration: Number(duration) || 0,
+        summary,
+        success_evaluation,
+        transcript,
+        status,
+        created_at
+      };
+    } else {
+      const [id, agent_id, agent_name, phone, duration, summary, transcript, status, created_at] = parsed;
+      return {
+        id: Number(id),
+        agent_id,
+        agent_name,
+        phone,
+        duration: Number(duration) || 0,
+        summary,
+        success_evaluation: '',
+        transcript,
+        status,
+        created_at
+      };
+    }
   });
 }
 

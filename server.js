@@ -33,7 +33,8 @@ const handleSnapserveWebhook = async (req, res) => {
   const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
   const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
   const duration = Number(body.duration || body.callDuration || body.call?.duration || 0);
-  const summary = body.summary || body.call_summary || body.callSummary || body.call?.summary || body.analysis?.summary || '';
+  const summary = body.callSummary || body.callSummary || body.call_summary || body.summary || body.call?.summary || body.analysis?.summary || '';
+  const success_evaluation = body.successEvaluation || body.success_evaluation || body.call?.successEvaluation || body.analysis?.successEvaluation || '';
   const transcript = body.transcript || body.call_transcript || body.callTranscript || body.call?.transcript || body.analysis?.transcript || (Array.isArray(body.messages) ? body.messages.map(m => `${m.role || m.speaker}: ${m.text || m.content}`).join('\n') : '');
   const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
 
@@ -44,6 +45,7 @@ const handleSnapserveWebhook = async (req, res) => {
       phone,
       duration,
       summary,
+      success_evaluation,
       transcript,
       status
     });
