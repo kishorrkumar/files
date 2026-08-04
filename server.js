@@ -14,6 +14,18 @@ const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'c
 app.use(express.json());
 
 const handleSnapserveWebhook = async (req, res) => {
+  const webhookSecret = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
+  const receivedSecret =
+    req.headers['x-snapserve-webhook-secret'] ||
+    req.headers['x-snapserve-signature'] ||
+    req.body?.secret ||
+    '';
+
+  if (webhookSecret && receivedSecret !== webhookSecret) {
+    console.error('Snapserve webhook secret mismatch');
+    return res.status(401).json({ error: 'Unauthorized webhook' });
+  }
+
   const body = req.body || {};
   console.log('Received Snapserve webhook:', JSON.stringify(body));
 
