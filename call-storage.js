@@ -55,7 +55,7 @@ async function ensureCallsFile(callsPath) {
   if (!fs.existsSync(callsPath)) {
     await fsPromises.writeFile(
       callsPath,
-      'id,agent_id,agent_name,phone,duration,summary,success_evaluation,transcript,status,created_at\n',
+      'id,agent_id,agent_name,phone,duration,summary,success_evaluation,recording_url,transcript,status,created_at\n',
       'utf8'
     );
   }
@@ -77,6 +77,7 @@ async function appendCall(callsPath, callData) {
     callData.duration || 0,
     callData.summary || '',
     callData.success_evaluation || '',
+    callData.recording_url || '',
     callData.transcript || '',
     callData.status || 'completed',
     createdAt
@@ -94,6 +95,7 @@ async function appendCall(callsPath, callData) {
     duration: callData.duration || 0,
     summary: callData.summary || '',
     success_evaluation: callData.success_evaluation || '',
+    recording_url: callData.recording_url || '',
     transcript: callData.transcript || '',
     status: callData.status || 'completed',
     created_at: createdAt
@@ -119,38 +121,34 @@ async function getCalls(callsPath) {
 
   const headers = parseCsvLine(lines[0]);
   const hasSuccessEval = headers.includes('success_evaluation');
+  const hasRecordingUrl = headers.includes('recording_url');
 
   return lines.slice(1).map((line) => {
     const parsed = parseCsvLine(line);
-    if (hasSuccessEval) {
-      const [id, agent_id, agent_name, phone, duration, summary, success_evaluation, transcript, status, created_at] = parsed;
-      return {
-        id: Number(id),
-        agent_id,
-        agent_name,
-        phone,
-        duration: Number(duration) || 0,
-        summary,
-        success_evaluation,
-        transcript,
-        status,
-        created_at
-      };
+    
+    let id, agent_id, agent_name, phone, duration, summary, success_evaluation = '', recording_url = '', transcript, status, created_at;
+    
+    if (hasSuccessEval && hasRecordingUrl) {
+      [id, agent_id, agent_name, phone, duration, summary, success_evaluation, recording_url, transcript, status, created_at] = parsed;
+    } else if (hasSuccessEval) {
+      [id, agent_id, agent_name, phone, duration, summary, success_evaluation, transcript, status, created_at] = parsed;
     } else {
-      const [id, agent_id, agent_name, phone, duration, summary, transcript, status, created_at] = parsed;
-      return {
-        id: Number(id),
-        agent_id,
-        agent_name,
-        phone,
-        duration: Number(duration) || 0,
-        summary,
-        success_evaluation: '',
-        transcript,
-        status,
-        created_at
-      };
+      [id, agent_id, agent_name, phone, duration, summary, transcript, status, created_at] = parsed;
     }
+
+    return {
+      id: Number(id),
+      agent_id,
+      agent_name,
+      phone,
+      duration: Number(duration) || 0,
+      summary,
+      success_evaluation,
+      recording_url,
+      transcript,
+      status,
+      created_at
+    };
   });
 }
 

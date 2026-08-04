@@ -197,6 +197,7 @@
               <th>Status</th>
               <th>Summary</th>
               <th>Success Eval</th>
+              <th>Recording</th>
               <th>Transcript</th>
               <th>Date</th>
             </tr>
@@ -344,7 +345,7 @@
     }
 
     async function loadCalls() {
-      callsBody.innerHTML = '<tr><td colspan="9" class="empty">Loading call records…</td></tr>';
+      callsBody.innerHTML = '<tr><td colspan="10" class="empty">Loading call records…</td></tr>';
 
       try {
         const response = await fetch('/calls');
@@ -354,7 +355,7 @@
 
         const calls = await response.json();
         if (!calls.length) {
-          callsBody.innerHTML = '<tr><td colspan="9" class="empty">No call records recorded yet.</td></tr>';
+          callsBody.innerHTML = '<tr><td colspan="10" class="empty">No call records recorded yet.</td></tr>';
           return;
         }
 
@@ -367,6 +368,13 @@
             <td><span class="badge" style="background:${call.status === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${call.status === 'completed' ? '#1f7a1e' : '#c52828'};">${call.status || 'unknown'}</span></td>
             <td style="max-width: 250px; font-size: 0.9rem;">${call.summary || '—'}</td>
             <td style="max-width: 200px; font-size: 0.9rem;">${call.success_evaluation || '—'}</td>
+            <td>
+              ${call.recording_url ? `
+                <a href="${call.recording_url}" target="_blank" class="badge" style="background:#e0f2fe; color:#0369a1; text-decoration:none; display:inline-flex; align-items:center; gap:4px; font-weight:600;">
+                  ▶ Play
+                </a>
+              ` : '—'}
+            </td>
             <td style="max-width: 250px;">
               ${call.transcript ? `
                 <details>
@@ -379,7 +387,7 @@
           </tr>
         `).join('');
       } catch (error) {
-        callsBody.innerHTML = `<tr><td colspan="9" class="empty">${error.message}</td></tr>`;
+        callsBody.innerHTML = `<tr><td colspan="10" class="empty">${error.message}</td></tr>`;
       }
     }
 

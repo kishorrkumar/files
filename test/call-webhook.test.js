@@ -16,6 +16,7 @@ test('appends call records to CSV and retrieves them accurately', async () => {
     duration: 145,
     summary: 'Lead expressed interest in UI/UX Design course.',
     success_evaluation: 'success',
+    recording_url: 'https://app.snapserve.ai/recordings/call-123.mp3',
     transcript: 'Agent: Hello! Lead: I want to know about Design course.',
     status: 'completed'
   });
@@ -24,11 +25,13 @@ test('appends call records to CSV and retrieves them accurately', async () => {
   assert.equal(firstCall.agent_id, 'agent-001');
   assert.equal(firstCall.duration, 145);
   assert.equal(firstCall.success_evaluation, 'success');
+  assert.equal(firstCall.recording_url, 'https://app.snapserve.ai/recordings/call-123.mp3');
   assert.equal(firstCall.status, 'completed');
 
   const calls = await getCalls(callsPath);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].summary, 'Lead expressed interest in UI/UX Design course.');
   assert.equal(calls[0].success_evaluation, 'success');
+  assert.equal(calls[0].recording_url, 'https://app.snapserve.ai/recordings/call-123.mp3');
   assert.equal(calls[0].phone, '+919876543210');
 });
