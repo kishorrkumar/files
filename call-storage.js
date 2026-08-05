@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const HEADERS = [
   'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'duration',
-  'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at'
+  'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at', 'ended_at'
 ];
 
 function resolveCallsPath(callsPath) {
@@ -86,7 +86,8 @@ async function getCalls(callsPath) {
       recording_url: raw.recording_url || '',
       transcript: raw.transcript || '',
       status: raw.status || 'unknown',
-      created_at: raw.created_at || ''
+      created_at: raw.created_at || '',
+      ended_at: raw.ended_at || ''
     };
   });
 }
@@ -146,7 +147,8 @@ async function upsertCall(callsPath, callData) {
     recording_url: '',
     transcript: '',
     status: 'unknown',
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    ended_at: ''
   }, callData);
   created.id = nextId;
   created.snapserve_call_id = snapserveId;
