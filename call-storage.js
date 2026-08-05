@@ -2,29 +2,29 @@ const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
 
+const HEADERS = [
+  'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'duration',
+  'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at'
+];
+
 function resolveCallsPath(callsPath) {
-  if (!callsPath) {
-    return path.join(__dirname, 'data', 'calls.csv');
-  }
+  if (!callsPath) return path.join(__dirname, 'data', 'calls.csv');
   return path.isAbsolute(callsPath) ? callsPath : path.resolve(process.cwd(), callsPath);
 }
 
 function escapeCsvValue(value) {
   const stringValue = value == null ? '' : String(value);
-  if (/[",\n]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-  return stringValue;
+  return /[",\n]/.test(stringValue)
+    ? `"${stringValue.replace(/"/g, '""')}"`
+    : stringValue;
 }
 
 function parseCsvLine(line) {
   const values = [];
   let current = '';
   let inQuotes = false;
-
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
-
     if (char === '"') {
       if (inQuotes && line[index + 1] === '"') {
         current += '"';
@@ -32,127 +32,130 @@ function parseCsvLine(line) {
       } else {
         inQuotes = !inQuotes;
       }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
+    } else if (char === ',' && !inQuotes) {
       values.push(current);
       current = '';
-      continue;
+    } else {
+      current += char;
     }
-
-    current += char;
   }
-
   values.push(current);
   return values;
 }
 
 async function ensureCallsFile(callsPath) {
-  const directory = path.dirname(callsPath);
-  await fsPromises.mkdir(directory, { recursive: true });
-
+  await fsPromises.mkdir(path.dirname(callsPath), { recursive: true });
   if (!fs.existsSync(callsPath)) {
-    await fsPromises.writeFile(
-      callsPath,
-      'id,agent_id,agent_name,phone,duration,summary,success_evaluation,recording_url,transcript,status,created_at\n',
-      'utf8'
-    );
+    await fsPromises.writeFile(callsPath, HEADERS.join(',') + '\n', 'utf8');
   }
 }
 
-async function appendCall(callsPath, callData) {
+function rowFromCall(call) {
+  return HEADERS.map(header => escapeCsvValue(call[header] ?? '')).join(',');
+}
+
+async function writeCalls(callsPath, calls) {
   const resolvedPath = resolveCallsPath(callsPath);
-  await ensureCallsFile(resolvedPath);
-
-  const existingCalls = await getCalls(resolvedPath);
-  const nextId = existingCalls.length > 0 ? existingCalls[existingCalls.length - 1].id + 1 : 1;
-  const createdAt = callData.created_at || new Date().toISOString();
-
-  const row = [
-    nextId,
-    callData.agent_id || '',
-    callData.agent_name || '',
-    callData.phone || '',
-    callData.duration || 0,
-    callData.summary || '',
-    callData.success_evaluation || '',
-    callData.recording_url || '',
-    callData.transcript || '',
-    callData.status || 'completed',
-    createdAt
-  ]
-    .map(escapeCsvValue)
-    .join(',') + '\n';
-
-  await fsPromises.appendFile(resolvedPath, row, 'utf8');
-
-  return {
-    id: nextId,
-    agent_id: callData.agent_id || '',
-    agent_name: callData.agent_name || '',
-    phone: callData.phone || '',
-    duration: callData.duration || 0,
-    summary: callData.summary || '',
-    success_evaluation: callData.success_evaluation || '',
-    recording_url: callData.recording_url || '',
-    transcript: callData.transcript || '',
-    status: callData.status || 'completed',
-    created_at: createdAt
-  };
+  await fsPromises.mkdir(path.dirname(resolvedPath), { recursive: true });
+  const body = calls.map(rowFromCall).join('\n');
+  await fsPromises.writeFile(resolvedPath, HEADERS.join(',') + '\n' + (body ? body + '\n' : ''), 'utf8');
 }
 
 async function getCalls(callsPath) {
   const resolvedPath = resolveCallsPath(callsPath);
-
-  if (!fs.existsSync(resolvedPath)) {
-    return [];
-  }
+  if (!fs.existsSync(resolvedPath)) return [];
 
   const content = await fsPromises.readFile(resolvedPath, 'utf8');
-  const lines = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length <= 1) {
-    return [];
-  }
+  const lines = content.split(/\r?\n/).filter(line => line.trim());
+  if (lines.length <= 1) return [];
 
   const headers = parseCsvLine(lines[0]);
-  const hasSuccessEval = headers.includes('success_evaluation');
-  const hasRecordingUrl = headers.includes('recording_url');
-
-  return lines.slice(1).map((line) => {
-    const parsed = parseCsvLine(line);
-    
-    let id, agent_id, agent_name, phone, duration, summary, success_evaluation = '', recording_url = '', transcript, status, created_at;
-    
-    if (hasSuccessEval && hasRecordingUrl) {
-      [id, agent_id, agent_name, phone, duration, summary, success_evaluation, recording_url, transcript, status, created_at] = parsed;
-    } else if (hasSuccessEval) {
-      [id, agent_id, agent_name, phone, duration, summary, success_evaluation, transcript, status, created_at] = parsed;
-    } else {
-      [id, agent_id, agent_name, phone, duration, summary, transcript, status, created_at] = parsed;
-    }
-
+  return lines.slice(1).map((line, rowIndex) => {
+    const values = parseCsvLine(line);
+    const raw = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+    const localId = Number(raw.id);
     return {
-      id: Number(id),
-      agent_id,
-      agent_name,
-      phone,
-      duration: Number(duration) || 0,
-      summary,
-      success_evaluation,
-      recording_url,
-      transcript,
-      status,
-      created_at
+      id: Number.isFinite(localId) && localId > 0 ? localId : rowIndex + 1,
+      snapserve_call_id: raw.snapserve_call_id || raw.call_id || '',
+      agent_id: raw.agent_id || '',
+      agent_name: raw.agent_name || '',
+      phone: raw.phone || '',
+      duration: Number(raw.duration) || 0,
+      summary: raw.summary || '',
+      success_evaluation: raw.success_evaluation || '',
+      recording_url: raw.recording_url || '',
+      transcript: raw.transcript || '',
+      status: raw.status || 'unknown',
+      created_at: raw.created_at || ''
     };
   });
 }
 
-module.exports = {
-  appendCall,
-  getCalls
-};
+function normalizedPhone(phone) {
+  return String(phone || '').replace(/\D/g, '').slice(-10);
+}
+
+function mergeCall(existing, incoming) {
+  const merged = { ...existing };
+  for (const header of HEADERS) {
+    const value = incoming[header];
+    if (value !== undefined && value !== null && value !== '') merged[header] = value;
+  }
+  merged.duration = Number(incoming.duration ?? existing.duration) || 0;
+  return merged;
+}
+
+async function upsertCall(callsPath, callData) {
+  const resolvedPath = resolveCallsPath(callsPath);
+  await ensureCallsFile(resolvedPath);
+  const calls = await getCalls(resolvedPath);
+  const snapserveId = String(callData.snapserve_call_id || callData.call_id || '');
+
+  let index = snapserveId
+    ? calls.findIndex(call => String(call.snapserve_call_id) === snapserveId)
+    : -1;
+
+  if (index < 0 && !snapserveId) {
+    const incomingTime = new Date(callData.created_at || 0).getTime();
+    index = calls.findIndex(call => {
+      const existingTime = new Date(call.created_at || 0).getTime();
+      return normalizedPhone(call.phone) === normalizedPhone(callData.phone) &&
+        String(call.agent_id) === String(callData.agent_id || '') &&
+        Number.isFinite(incomingTime) && Number.isFinite(existingTime) &&
+        Math.abs(existingTime - incomingTime) < 5000;
+    });
+  }
+
+  if (index >= 0) {
+    calls[index] = mergeCall(calls[index], { ...callData, snapserve_call_id: snapserveId });
+    await writeCalls(resolvedPath, calls);
+    return calls[index];
+  }
+
+  const nextId = calls.reduce((max, call) => Math.max(max, Number(call.id) || 0), 0) + 1;
+  const created = mergeCall({
+    id: nextId,
+    snapserve_call_id: snapserveId,
+    agent_id: '',
+    agent_name: '',
+    phone: '',
+    duration: 0,
+    summary: '',
+    success_evaluation: '',
+    recording_url: '',
+    transcript: '',
+    status: 'unknown',
+    created_at: new Date().toISOString()
+  }, callData);
+  created.id = nextId;
+  created.snapserve_call_id = snapserveId;
+  calls.push(created);
+  await writeCalls(resolvedPath, calls);
+  return created;
+}
+
+async function appendCall(callsPath, callData) {
+  return upsertCall(callsPath, callData);
+}
+
+module.exports = { appendCall, upsertCall, getCalls };
