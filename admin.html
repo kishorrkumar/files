@@ -802,7 +802,7 @@
 
       callsBody.innerHTML = calls.map((call, callIndex) => `
         <tr>
-          <td>#${safe(call.id)}</td>
+          <td><strong>${safe(call.snapserve_call_id || call.id || '—')}</strong></td>
           <td>${safe(call.student_name || 'Not available')}</td>
           <td>${call.filter_agent ? '<span class="badge">' + safe(call.filter_agent) + '</span>' : '—'}</td>
           <td>${call.course ? '<span class="badge">' + safe(call.course) + '</span>' : 'Not available'}</td>
@@ -812,7 +812,7 @@
           <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-summary-index="' + callIndex + '">View summary</button>' : '—'}</td>
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
           <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
-          <td style="max-width:250px;">${call.transcript ? '<details><summary style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.85rem;">View transcript</summary><pre style="white-space:pre-wrap;font-size:0.8rem;background:#f5f3ff;padding:8px;border-radius:6px;margin-top:6px;max-height:150px;overflow-y:auto;">' + safe(call.transcript) + '</pre></details>' : '—'}</td>
+          <td>${call.transcript ? '<button class="mini-btn transcript-btn" type="button" data-transcript-index="' + callIndex + '">View transcript</button>' : '—'}</td>
           <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
         </tr>
       `).join('');
@@ -841,6 +841,29 @@
         typeof call.summary === 'string'
           ? call.summary
           : JSON.stringify(call.summary, null, 2);
+      document.getElementById('summaryModal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      document.getElementById('closeSummaryModal').focus();
+    }
+
+    function openTranscript(transcriptIndex) {
+      const call = visibleCalls[Number(transcriptIndex)];
+      if (!call) {
+        alert('This transcript is no longer available. Please refresh the call logs.');
+        return;
+      }
+      document.getElementById('summaryModalTitle').textContent =
+        (call.student_name || 'Student') + ' — Call transcript';
+      document.getElementById('summaryModalMeta').textContent = [
+        call.snapserve_call_id ? 'Call ID: ' + call.snapserve_call_id : '',
+        call.course,
+        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
+        call.duration ? call.duration + ' seconds' : ''
+      ].filter(Boolean).join(' · ');
+      document.getElementById('summaryModalCopy').textContent =
+        typeof call.transcript === 'string'
+          ? call.transcript
+          : JSON.stringify(call.transcript, null, 2);
       document.getElementById('summaryModal').classList.add('open');
       document.body.style.overflow = 'hidden';
       document.getElementById('closeSummaryModal').focus();
@@ -898,8 +921,10 @@
       if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
     });
     callsBody.addEventListener('click', (event) => {
-      const button = event.target.closest('.summary-btn');
-      if (button) openSummary(button.dataset.summaryIndex);
+      const summaryButton = event.target.closest('.summary-btn');
+      const transcriptButton = event.target.closest('.transcript-btn');
+      if (summaryButton) openSummary(summaryButton.dataset.summaryIndex);
+      if (transcriptButton) openTranscript(transcriptButton.dataset.transcriptIndex);
     });
     document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
     document.getElementById('summaryModal').addEventListener('click', (event) => {
