@@ -4,7 +4,7 @@ const express = require('express');
 const path = require('path');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
-const { appendCall, getCalls } = require('./call-storage');
+const { upsertCall, getCalls } = require('./call-storage');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,6 +12,18 @@ const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, 'data', 'lea
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'calls.csv');
 
 app.use(express.json());
+
+function normalizeTranscript(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      if (typeof item === 'string') return item;
+      return `${item.role || item.speaker || 'speaker'}: ${item.text || item.content || item.message || ''}`;
+    }).join('\n');
+  }
+  return JSON.stringify(value, null, 2);
+}
 
 const handleSnapserveWebhook = async (req, res) => {
   const webhookSecret = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
@@ -29,18 +41,23 @@ const handleSnapserveWebhook = async (req, res) => {
   const body = req.body || {};
   console.log('Received Snapserve webhook:', JSON.stringify(body));
 
+  const snapserve_call_id = body.callId || body.id || body.call?.id || body.payload?.callId || '';
   const agent_id = body.agent_id || body.agentId || body.agent?.id || body.call?.agentId || '';
   const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
   const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
-  const duration = Number(body.duration || body.callDuration || body.call?.duration || 0);
+  const duration = Number(body.durationSeconds || body.duration || body.callDuration || body.call?.durationSeconds || body.call?.duration || 0);
   const summary = body.callSummary || body.call_summary || body.summary || body.call?.summary || body.analysis?.summary || '';
   const success_evaluation = body.successEvaluation || body.success_evaluation || body.call?.successEvaluation || body.analysis?.successEvaluation || '';
   const recording_url = body.recordingUrl || body.recording_url || body.call?.recordingUrl || body.payload?.recordingUrl || '';
-  const transcript = body.transcript || body.call_transcript || body.callTranscript || body.call?.transcript || body.analysis?.transcript || (Array.isArray(body.messages) ? body.messages.map(m => `${m.role || m.speaker}: ${m.text || m.content}`).join('\n') : '');
+  const transcript = normalizeTranscript(
+    body.transcript || body.call_transcript || body.callTranscript ||
+    body.call?.transcript || body.analysis?.transcript || body.messages
+  );
   const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
 
   try {
-    const result = await appendCall(CALLS_PATH, {
+    const result = await upsertCall(CALLS_PATH, {
+      snapserve_call_id,
       agent_id,
       agent_name,
       phone,
@@ -205,44 +222,28 @@ app.get('/calls', async (req, res) => {
         if (response.ok) {
           const snapserveCalls = await response.json();
           if (Array.isArray(snapserveCalls)) {
-            let newCallsFound = false;
-            // Sort ascending to append in correct chronological order
-            snapserveCalls.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
             for (const call of snapserveCalls) {
-              const callTime = new Date(call.createdAt).getTime();
-              // Check if call already exists in local CSV
-              const exists = calls.some(c =>
-                c.phone === call.toNumber &&
-                String(c.agent_id) === String(call.agentId) &&
-                Math.abs(new Date(c.created_at).getTime() - callTime) < 5000
-              );
-
-              if (!exists) {
-                let recordingUrl = call.recordingUrl || '';
-                if (recordingUrl && recordingUrl.startsWith('/')) {
-                  recordingUrl = `https://app.snapserve.ai${recordingUrl}`;
-                }
-
-                await appendCall(CALLS_PATH, {
-                  agent_id: String(call.agentId || ''),
-                  agent_name: call.agentName || '',
-                  phone: call.toNumber || '',
-                  duration: call.durationSeconds || 0,
-                  summary: call.callSummary || '',
-                  success_evaluation: call.successEvaluation || '',
-                  recording_url: recordingUrl,
-                  transcript: call.transcript || '',
-                  status: call.status || 'completed',
-                  created_at: call.createdAt
-                });
-                newCallsFound = true;
+              let recordingUrl = call.recordingUrl || '';
+              if (recordingUrl && recordingUrl.startsWith('/')) {
+                recordingUrl = `https://app.snapserve.ai${recordingUrl}`;
               }
+
+              await upsertCall(CALLS_PATH, {
+                snapserve_call_id: String(call.id || call.callId || ''),
+                agent_id: String(call.agentId || ''),
+                agent_name: call.agentName || '',
+                phone: call.toNumber || call.phone || '',
+                duration: call.durationSeconds || call.duration || 0,
+                summary: call.callSummary || call.summary || '',
+                success_evaluation: call.successEvaluation || '',
+                recording_url: recordingUrl,
+                transcript: normalizeTranscript(call.transcript || call.messages),
+                status: call.status || 'unknown',
+                created_at: call.createdAt || new Date().toISOString()
+              });
             }
 
-            if (newCallsFound) {
-              calls = await getCalls(CALLS_PATH);
-            }
+            calls = await getCalls(CALLS_PATH);
           }
         }
       } catch (syncErr) {
