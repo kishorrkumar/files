@@ -742,12 +742,55 @@
         const lead = availableLeads.find(item =>
           normalizedPhone(item.phone) && normalizedPhone(item.phone) === normalizedPhone(call.phone)
         );
+        const rawStatus = String(call.status || '').toLowerCase();
+        const hasCompletedData = Number(call.duration || 0) > 0 &&
+          Boolean(call.summary || call.transcript || call.recording_url);
         return {
           ...call,
           student_name: call.student_name || call.student || lead?.name || '',
           course: call.course || lead?.course || '',
-          filter_agent: call.agent_name || String(call.agent_id || '')
+          filter_agent: call.agent_name || String(call.agent_id || ''),
+          status: (!rawStatus || rawStatus === 'unknown') && hasCompletedData
+            ? 'completed'
+            : (rawStatus || 'unknown'),
+          call_datetime: call.created_at || call.ended_at || ''
         };
+      });
+    }
+
+    function deduplicateCalls(calls) {
+      const byKey = new Map();
+      calls.forEach(call => {
+        const key = call.snapserve_call_id
+          ? 'id:' + call.snapserve_call_id
+          : [
+              normalizedPhone(call.phone),
+              call.filter_agent,
+              Number(call.duration) || 0,
+              String(call.summary || '').slice(0, 80)
+            ].join('|');
+        const score = (call.snapserve_call_id ? 8 : 0) +
+          (call.call_datetime ? 4 : 0) +
+          (call.status === 'completed' ? 2 : 0) +
+          (call.transcript ? 1 : 0);
+        const existing = byKey.get(key);
+        if (!existing || score > existing.score) byKey.set(key, { call, score });
+      });
+      return [...byKey.values()].map(entry => entry.call);
+    }
+
+    function formatCallDate(value) {
+      if (!value) return 'Not available';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'Not available';
+      return date.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
       });
     }
 
@@ -771,7 +814,7 @@
     }
 
     function renderCalls() {
-      const enriched = enrichCalls(availableCalls).filter(call =>
+      const enriched = deduplicateCalls(enrichCalls(availableCalls)).filter(call =>
         ACADEMY_COURSES.includes(call.course)
       );
       const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
@@ -813,7 +856,7 @@
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
           <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
           <td>${call.transcript ? '<button class="mini-btn transcript-btn" type="button" data-transcript-index="' + callIndex + '">View transcript</button>' : '—'}</td>
-          <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
+          <td style="font-size:0.85rem;white-space:nowrap;">${safe(formatCallDate(call.call_datetime))}</td>
         </tr>
       `).join('');
     }
