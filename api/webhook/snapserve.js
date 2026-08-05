@@ -2,12 +2,24 @@ require('dotenv').config();
 
 const path = require('path');
 const { neon } = require('@neondatabase/serverless');
-const { appendCall } = require('../../call-storage');
+const { upsertCall } = require('../../call-storage');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const RENDER_API_URL = process.env.RENDER_API_URL;
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, '..', '..', 'data', 'calls.csv');
-const WEBHOOK_SECRET = process.env.snapserve_webhook_secret || '';
+const WEBHOOK_SECRET = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
+
+function normalizeTranscript(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      if (typeof item === 'string') return item;
+      return `${item.role || item.speaker || 'speaker'}: ${item.text || item.content || item.message || ''}`;
+    }).join('\n');
+  }
+  return JSON.stringify(value, null, 2);
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -33,19 +45,24 @@ module.exports = async (req, res) => {
   }
 
   const body = req.body || {};
+  const snapserve_call_id = body.callId || body.id || body.call?.id || body.payload?.callId || '';
   const agent_id = body.agent_id || body.agentId || body.agent?.id || body.call?.agentId || '';
   const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
   const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
-  const duration = Number(body.duration || body.callDuration || body.call?.duration || 0);
+  const duration = Number(body.durationSeconds || body.duration || body.callDuration || body.call?.durationSeconds || body.call?.duration || 0);
   const summary = body.callSummary || body.call_summary || body.summary || body.call?.summary || body.analysis?.summary || '';
   const success_evaluation = body.successEvaluation || body.success_evaluation || body.call?.successEvaluation || body.analysis?.successEvaluation || '';
   const recording_url = body.recordingUrl || body.recording_url || body.call?.recordingUrl || body.payload?.recordingUrl || '';
-  const transcript = body.transcript || body.call_transcript || body.callTranscript || body.call?.transcript || body.analysis?.transcript || (Array.isArray(body.messages) ? body.messages.map(m => `${m.role || m.speaker}: ${m.text || m.content}`).join('\n') : '');
+  const transcript = normalizeTranscript(
+    body.transcript || body.call_transcript || body.callTranscript ||
+    body.call?.transcript || body.analysis?.transcript || body.messages
+  );
   const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
 
   // 1. Store locally in CSV
   try {
-    await appendCall(CALLS_PATH, {
+    await upsertCall(CALLS_PATH, {
+      snapserve_call_id,
       agent_id,
       agent_name,
       phone,
@@ -93,7 +110,7 @@ module.exports = async (req, res) => {
       `;
       await sql`
         INSERT INTO snapserve_webhooks (event_type, call_id, phone, payload)
-        VALUES (${status}, ${body.callId || body.call?.id || null}, ${phone}, ${JSON.stringify(body)})
+        VALUES (${status}, ${snapserve_call_id || null}, ${phone}, ${JSON.stringify(body)})
       `;
     } catch (dbErr) {
       console.error('Neon DB webhook insert failed:', dbErr);
