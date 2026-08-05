@@ -243,6 +243,52 @@
       font-size: 0.72rem;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .auto-call-control {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      display: inline-block;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      background: #c9c4d2;
+      transition: 0.2s;
+    }
+    .switch-slider::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: white;
+      transition: 0.2s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .switch input:checked + .switch-slider { background: var(--accent); }
+    .switch input:checked + .switch-slider::before { transform: translateX(22px); }
+
     .mini-btn {
       border: 1px solid #d8ccff;
       background: #f4f0ff;
@@ -387,7 +433,16 @@
     <section class="card" style="margin-top: 28px;">
       <div class="header">
         <h1>Lead Admin Panel - Assign Agent & Call</h1>
-        <button id="refreshBtn" type="button">Refresh</button>
+        <div class="header-actions">
+          <div class="auto-call-control">
+            <span id="autoCallLabel">Auto call off</span>
+            <label class="switch" title="Automatically call new lead submissions">
+              <input id="autoCallToggle" type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <button id="refreshBtn" type="button">Refresh</button>
+        </div>
       </div>
       <div class="filter-bar" style="grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) minmax(180px,1fr) auto;" aria-label="Lead filters">
         <div class="filter-field">
@@ -512,6 +567,8 @@
     const leadCourseFilter = document.getElementById('leadCourseFilter');
     const leadAssignmentFilter = document.getElementById('leadAssignmentFilter');
     const leadResultCount = document.getElementById('leadResultCount');
+    const autoCallToggle = document.getElementById('autoCallToggle');
+    const autoCallLabel = document.getElementById('autoCallLabel');
 
     const ACADEMY_COURSES = [
       'UI/UX Design Mastery',
@@ -551,8 +608,8 @@
       ) || '';
     }
 
-    function agentsForCourse(course) {
-      return filteredAgents().filter(agent => courseForAgent(agent) === course);
+    function agentsForCourse() {
+      return filteredAgents();
     }
 
     function filteredAgents() {
@@ -596,7 +653,7 @@
         }
 
         const agents = await response.json();
-        availableAgents = (Array.isArray(agents) ? agents : []).filter(agent => courseForAgent(agent));
+        availableAgents = Array.isArray(agents) ? agents : [];
 
         populateFilter(agentStatusFilter, uniqueValues(availableAgents, 'status'), 'All statuses');
         populateFilter(agentLanguageFilter, uniqueValues(availableAgents, 'language'), 'All languages');
@@ -631,9 +688,7 @@
           const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
           return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
         });
-        const selectedAgent = availableAgents.find(a =>
-          String(a.id) === String(lead.agent) && courseForAgent(a) === lead.course
-        );
+        const selectedAgent = availableAgents.find(a => String(a.id) === String(lead.agent));
         const options = agents.map(agent => {
           const selected = String(lead.agent) === String(agent.id) ? 'selected' : '';
           const label = [agent.name || 'Agent ' + agent.id, agent.language, agent.agentType, agent.status]
@@ -652,11 +707,11 @@
             <td>${safe(lead.phone || '—')}</td>
             <td>${lead.course ? '<span class="badge">' + safe(lead.course) + '</span>' : '—'}</td>
             <td>
-              <select id="agent-select-${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}">
+              <select id="agent-select-${safe(lead.id)}" data-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}">
                 <option value="">Choose an agent</option>
                 ${keepSelected}${options}
               </select>
-              <span class="agent-hint">${agents.length} matching agents</span>
+              <span class="agent-hint">${lead.agent ? 'Saved agent selected' : agents.length + ' available agents'}</span>
             </td>
             <td>
               <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}">
@@ -682,6 +737,86 @@
       } catch (error) {
         leadsBody.innerHTML = '<tr><td colspan="8" class="empty">' + safe(error.message) + '</td></tr>';
       }
+    }
+
+    function getAdminKey() {
+      let key = sessionStorage.getItem('adminApiKey') || '';
+      if (!key) {
+        key = prompt('Enter the admin API key to save this change:') || '';
+        if (key) sessionStorage.setItem('adminApiKey', key);
+      }
+      return key;
+    }
+
+    async function saveAgentAssignment(select) {
+      const leadId = select.dataset.leadId;
+      const agentId = select.value;
+      if (!agentId) return;
+      const previousLead = availableLeads.find(lead => String(lead.id) === String(leadId));
+      const previousAgent = previousLead?.agent || '';
+      const key = getAdminKey();
+      if (!key) {
+        select.value = previousAgent;
+        return;
+      }
+
+      select.disabled = true;
+      try {
+        const response = await fetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+          body: JSON.stringify({ agentId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not save selected agent');
+        if (previousLead) previousLead.agent = agentId;
+        const hint = select.parentElement.querySelector('.agent-hint');
+        if (hint) hint.textContent = 'Saved agent selected';
+      } catch (error) {
+        if (response?.status === 401) sessionStorage.removeItem('adminApiKey');
+        select.value = previousAgent;
+        alert(error.message);
+      } finally {
+        select.disabled = false;
+      }
+    }
+
+    async function updateAutoCall(enabled) {
+      const key = getAdminKey();
+      if (!key) {
+        autoCallToggle.checked = !enabled;
+        return;
+      }
+      autoCallToggle.disabled = true;
+      try {
+        const response = await fetch('/settings/auto-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+          body: JSON.stringify({ enabled })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not save auto call setting');
+        autoCallToggle.checked = data.auto_call_enabled;
+        autoCallLabel.textContent = data.auto_call_enabled ? 'Auto call on' : 'Auto call off';
+      } catch (error) {
+        if (response?.status === 401) sessionStorage.removeItem('adminApiKey');
+        autoCallToggle.checked = !enabled;
+        alert(error.message);
+      } finally {
+        autoCallToggle.disabled = false;
+      }
+    }
+
+    async function loadAutoCallSetting() {
+      const key = sessionStorage.getItem('adminApiKey');
+      if (!key) return;
+      try {
+        const response = await fetch('/settings', { headers: { 'x-admin-key': key } });
+        if (!response.ok) return;
+        const data = await response.json();
+        autoCallToggle.checked = data.auto_call_enabled === true;
+        autoCallLabel.textContent = autoCallToggle.checked ? 'Auto call on' : 'Auto call off';
+      } catch {}
     }
 
     async function triggerCallForLead(leadId, phone) {
@@ -963,6 +1098,10 @@
       const button = event.target.closest('.call-btn');
       if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
     });
+    leadsBody.addEventListener('change', (event) => {
+      if (event.target.matches('.agent-select')) saveAgentAssignment(event.target);
+    });
+    autoCallToggle.addEventListener('change', () => updateAutoCall(autoCallToggle.checked));
     callsBody.addEventListener('click', (event) => {
       const summaryButton = event.target.closest('.summary-btn');
       const transcriptButton = event.target.closest('.transcript-btn');
@@ -981,6 +1120,7 @@
     refreshBtn.addEventListener('click', loadLeads);
     refreshCallsBtn.addEventListener('click', loadCalls);
 
+    loadAutoCallSetting();
     loadAgents();
     loadCalls();
   </script>
