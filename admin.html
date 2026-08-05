@@ -243,6 +243,61 @@
       font-size: 0.72rem;
     }
 
+    .mini-btn {
+      border: 1px solid #d8ccff;
+      background: #f4f0ff;
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 20px;
+      background: rgba(21, 20, 28, 0.48);
+      z-index: 1000;
+    }
+
+    .modal-backdrop.open { display: grid; }
+
+    .mini-window {
+      width: min(560px, 100%);
+      max-height: 75vh;
+      overflow: auto;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 28px 80px rgba(21, 20, 28, 0.32);
+    }
+
+    .mini-window-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mini-window-head h2 { margin: 0; font-size: 1.05rem; }
+    .mini-window-close {
+      border: 0;
+      background: #f1edf8;
+      border-radius: 999px;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .mini-window-body { padding: 20px; }
+    .summary-meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
+    .summary-copy { margin: 0; line-height: 1.65; white-space: pre-wrap; }
+
     @media (max-width: 900px) {
       .filter-bar { grid-template-columns: 1fr 1fr; }
       .clear-btn { width: 100%; }
@@ -422,6 +477,19 @@
     </section>
   </main>
 
+  <div id="summaryModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
+    <article class="mini-window">
+      <div class="mini-window-head">
+        <h2 id="summaryModalTitle">Call summary</h2>
+        <button id="closeSummaryModal" class="mini-window-close" type="button" aria-label="Close summary">×</button>
+      </div>
+      <div class="mini-window-body">
+        <div id="summaryModalMeta" class="summary-meta"></div>
+        <p id="summaryModalCopy" class="summary-copy"></p>
+      </div>
+    </article>
+  </div>
+
   <script>
     const agentsBody = document.getElementById('agentsBody');
     const refreshAgentsBtn = document.getElementById('refreshAgentsBtn');
@@ -445,6 +513,18 @@
     const leadAssignmentFilter = document.getElementById('leadAssignmentFilter');
     const leadResultCount = document.getElementById('leadResultCount');
 
+    const ACADEMY_COURSES = [
+      'UI/UX Design Mastery',
+      'Full-Stack Web Development',
+      'Filmmaking & Video Editing'
+    ];
+
+    const COURSE_AGENT_KEYWORDS = {
+      'UI/UX Design Mastery': ['ui', 'ux', 'design'],
+      'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
+      'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
+    };
+
     let availableAgents = [];
     let availableLeads = [];
     let availableCalls = [];
@@ -461,6 +541,17 @@
       select.innerHTML = '<option value="">' + firstLabel + '</option>' +
         values.map(value => '<option value="' + safe(value) + '">' + safe(value) + '</option>').join('');
       select.value = values.includes(current) ? current : '';
+    }
+
+    function courseForAgent(agent) {
+      const name = String(agent?.name || '').toLowerCase();
+      return ACADEMY_COURSES.find(course =>
+        COURSE_AGENT_KEYWORDS[course].some(keyword => name.includes(keyword))
+      ) || '';
+    }
+
+    function agentsForCourse(course) {
+      return filteredAgents().filter(agent => courseForAgent(agent) === course);
     }
 
     function filteredAgents() {
@@ -504,7 +595,7 @@
         }
 
         const agents = await response.json();
-        availableAgents = Array.isArray(agents) ? agents : [];
+        availableAgents = (Array.isArray(agents) ? agents : []).filter(agent => courseForAgent(agent));
 
         populateFilter(agentStatusFilter, uniqueValues(availableAgents, 'status'), 'All statuses');
         populateFilter(agentLanguageFilter, uniqueValues(availableAgents, 'language'), 'All languages');
@@ -533,14 +624,15 @@
         return;
       }
 
-      const agents = filteredAgents().slice().sort((a, b) => {
-        const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
-        const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
-        return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
-      });
-
       leadsBody.innerHTML = leads.map((lead) => {
-        const selectedAgent = availableAgents.find(a => String(a.id) === String(lead.agent));
+        const agents = agentsForCourse(lead.course).slice().sort((a, b) => {
+          const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
+          const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
+          return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
+        });
+        const selectedAgent = availableAgents.find(a =>
+          String(a.id) === String(lead.agent) && courseForAgent(a) === lead.course
+        );
         const options = agents.map(agent => {
           const selected = String(lead.agent) === String(agent.id) ? 'selected' : '';
           const label = [agent.name || 'Agent ' + agent.id, agent.language, agent.agentType, agent.status]
@@ -667,9 +759,12 @@
     }
 
     function renderCalls() {
-      const enriched = enrichCalls(availableCalls);
-      populateFilter(callAgentFilter, uniqueValues(enriched, 'filter_agent'), 'All agents');
-      populateFilter(callCourseFilter, uniqueValues(enriched, 'course'), 'All courses');
+      const enriched = enrichCalls(availableCalls).filter(call =>
+        ACADEMY_COURSES.includes(call.course)
+      );
+      const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
+      populateFilter(callAgentFilter, relatedAgentNames, 'All related agents');
+      populateFilter(callCourseFilter, ACADEMY_COURSES, 'All three courses');
       populateFilter(callStatusFilter, uniqueValues(enriched, 'status'), 'All statuses');
 
       const query = callSearch.value.trim().toLowerCase();
@@ -684,7 +779,7 @@
           (!callStatusFilter.value || call.status === callStatusFilter.value);
       });
 
-      callResultCount.textContent = calls.length + ' of ' + availableCalls.length + ' calls shown';
+      callResultCount.textContent = calls.length + ' academy calls shown';
       updateCallMetrics(calls);
 
       if (!calls.length) {
@@ -701,13 +796,27 @@
           <td>${safe(call.phone || '—')}</td>
           <td>${safe((Number(call.duration) || 0) + 's')}</td>
           <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
-          <td style="max-width:250px;font-size:0.9rem;">${safe(call.summary || '—')}</td>
+          <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-call-id="' + safe(call.id) + '">View summary</button>' : '—'}</td>
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
           <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
           <td style="max-width:250px;">${call.transcript ? '<details><summary style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.85rem;">View transcript</summary><pre style="white-space:pre-wrap;font-size:0.8rem;background:#f5f3ff;padding:8px;border-radius:6px;margin-top:6px;max-height:150px;overflow-y:auto;">' + safe(call.transcript) + '</pre></details>' : '—'}</td>
           <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
         </tr>
       `).join('');
+    }
+
+    function openSummary(callId) {
+      const call = enrichCalls(availableCalls).find(item => String(item.id) === String(callId));
+      if (!call) return;
+      document.getElementById('summaryModalTitle').textContent = (call.student_name || 'Student') + ' — Call summary';
+      document.getElementById('summaryModalMeta').textContent =
+        [call.course, call.filter_agent, call.phone].filter(Boolean).join(' · ');
+      document.getElementById('summaryModalCopy').textContent = call.summary || 'No summary available.';
+      document.getElementById('summaryModal').classList.add('open');
+    }
+
+    function closeSummary() {
+      document.getElementById('summaryModal').classList.remove('open');
     }
 
     async function loadCalls() {
@@ -755,6 +864,17 @@
     leadsBody.addEventListener('click', (event) => {
       const button = event.target.closest('.call-btn');
       if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
+    });
+    callsBody.addEventListener('click', (event) => {
+      const button = event.target.closest('.summary-btn');
+      if (button) openSummary(button.dataset.callId);
+    });
+    document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
+    document.getElementById('summaryModal').addEventListener('click', (event) => {
+      if (event.target.id === 'summaryModal') closeSummary();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeSummary();
     });
 
     refreshAgentsBtn.addEventListener('click', loadAgents);
