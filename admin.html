@@ -172,6 +172,86 @@
       font-size: 0.8rem;
       color: var(--muted);
     }
+
+    .filter-bar {
+      display: grid;
+      grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr)) auto;
+      gap: 12px;
+      align-items: end;
+      padding: 18px 28px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .filter-field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .filter-field label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .filter-input {
+      width: 100%;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fdfbf7;
+      color: var(--ink);
+      font: inherit;
+      outline: none;
+    }
+
+    .filter-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(111, 79, 242, 0.12);
+    }
+
+    .clear-btn {
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 14px;
+      background: white;
+      color: var(--ink);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .result-count {
+      padding: 10px 28px 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .agent-select {
+      width: min(100%, 270px);
+      min-width: 220px;
+    }
+
+    .agent-hint {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    @media (max-width: 900px) {
+      .filter-bar { grid-template-columns: 1fr 1fr; }
+      .clear-btn { width: 100%; }
+    }
+
+    @media (max-width: 560px) {
+      .filter-bar { grid-template-columns: 1fr; }
+      .page { padding-inline: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -181,6 +261,26 @@
         <h1>Available Agents</h1>
         <button id="refreshAgentsBtn" type="button">Refresh</button>
       </div>
+      <div class="filter-bar" aria-label="Agent filters">
+        <div class="filter-field">
+          <label for="agentSearch">Search agent</label>
+          <input id="agentSearch" class="filter-input" type="search" placeholder="Name, ID or model" />
+        </div>
+        <div class="filter-field">
+          <label for="agentStatusFilter">Status</label>
+          <select id="agentStatusFilter" class="filter-input"><option value="">All statuses</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="agentLanguageFilter">Language</label>
+          <select id="agentLanguageFilter" class="filter-input"><option value="">All languages</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="agentTypeFilter">Type</label>
+          <select id="agentTypeFilter" class="filter-input"><option value="">All types</option></select>
+        </div>
+        <button id="clearAgentFilters" class="clear-btn" type="button">Clear filters</button>
+      </div>
+      <div id="agentResultCount" class="result-count">Loading agents…</div>
       <div class="table-wrap">
         <table id="agentsTable">
           <thead>
@@ -234,6 +334,26 @@
         <h1>Lead Admin Panel - Assign Agent & Call</h1>
         <button id="refreshBtn" type="button">Refresh</button>
       </div>
+      <div class="filter-bar" style="grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) minmax(180px,1fr) auto;" aria-label="Lead filters">
+        <div class="filter-field">
+          <label for="leadSearch">Search lead</label>
+          <input id="leadSearch" class="filter-input" type="search" placeholder="Name, email or phone" />
+        </div>
+        <div class="filter-field">
+          <label for="leadCourseFilter">Course</label>
+          <select id="leadCourseFilter" class="filter-input"><option value="">All courses</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="leadAssignmentFilter">Assignment</label>
+          <select id="leadAssignmentFilter" class="filter-input">
+            <option value="">All leads</option>
+            <option value="assigned">Assigned</option>
+            <option value="unassigned">Unassigned</option>
+          </select>
+        </div>
+        <button id="clearLeadFilters" class="clear-btn" type="button">Clear filters</button>
+      </div>
+      <div id="leadResultCount" class="result-count">Loading leads…</div>
       <div class="table-wrap">
         <table id="leadsTable">
           <thead>
@@ -288,7 +408,63 @@
     const callsBody = document.getElementById('callsBody');
     const refreshCallsBtn = document.getElementById('refreshCallsBtn');
 
+    const agentSearch = document.getElementById('agentSearch');
+    const agentStatusFilter = document.getElementById('agentStatusFilter');
+    const agentLanguageFilter = document.getElementById('agentLanguageFilter');
+    const agentTypeFilter = document.getElementById('agentTypeFilter');
+    const agentResultCount = document.getElementById('agentResultCount');
+    const leadSearch = document.getElementById('leadSearch');
+    const leadCourseFilter = document.getElementById('leadCourseFilter');
+    const leadAssignmentFilter = document.getElementById('leadAssignmentFilter');
+    const leadResultCount = document.getElementById('leadResultCount');
+
     let availableAgents = [];
+    let availableLeads = [];
+
+    const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+
+    const uniqueValues = (items, key) => [...new Set(items.map(item => item[key]).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b)));
+
+    function populateFilter(select, values, firstLabel) {
+      const current = select.value;
+      select.innerHTML = '<option value="">' + firstLabel + '</option>' +
+        values.map(value => '<option value="' + safe(value) + '">' + safe(value) + '</option>').join('');
+      select.value = values.includes(current) ? current : '';
+    }
+
+    function filteredAgents() {
+      const query = agentSearch.value.trim().toLowerCase();
+      return availableAgents.filter(agent => {
+        const haystack = [agent.id, agent.name, agent.llmModel].join(' ').toLowerCase();
+        return (!query || haystack.includes(query)) &&
+          (!agentStatusFilter.value || agent.status === agentStatusFilter.value) &&
+          (!agentLanguageFilter.value || agent.language === agentLanguageFilter.value) &&
+          (!agentTypeFilter.value || agent.agentType === agentTypeFilter.value);
+      });
+    }
+
+    function renderAgents() {
+      const agents = filteredAgents();
+      agentResultCount.textContent = agents.length + ' of ' + availableAgents.length + ' agents shown';
+      if (!agents.length) {
+        agentsBody.innerHTML = '<tr><td colspan="6" class="empty">No agents match these filters.</td></tr>';
+      } else {
+        agentsBody.innerHTML = agents.map((agent) => `
+          <tr>
+            <td>#${safe(agent.id)}</td>
+            <td>${safe(agent.name || '—')}</td>
+            <td>${safe(agent.agentType || '—')}</td>
+            <td><span class="badge">${safe(agent.status || 'unknown')}</span></td>
+            <td>${safe(agent.language || '—')}</td>
+            <td>${safe(agent.llmModel || '—')}</td>
+          </tr>
+        `).join('');
+      }
+      renderLeads();
+    }
 
     async function loadAgents() {
       agentsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading agents…</td></tr>';
@@ -302,77 +478,87 @@
         const agents = await response.json();
         availableAgents = Array.isArray(agents) ? agents : [];
 
-        if (!availableAgents.length) {
-          agentsBody.innerHTML = '<tr><td colspan="6" class="empty">No agents available.</td></tr>';
-          return;
-        }
-
-        agentsBody.innerHTML = availableAgents.map((agent) => `
-          <tr>
-            <td>#${agent.id}</td>
-            <td>${agent.name || '—'}</td>
-            <td>${agent.agentType || '—'}</td>
-            <td><span class="badge">${agent.status || 'unknown'}</span></td>
-            <td>${agent.language || '—'}</td>
-            <td>${agent.llmModel || '—'}</td>
-          </tr>
-        `).join('');
-
-        // Reload leads to populate agent options in leads table
+        populateFilter(agentStatusFilter, uniqueValues(availableAgents, 'status'), 'All statuses');
+        populateFilter(agentLanguageFilter, uniqueValues(availableAgents, 'language'), 'All languages');
+        populateFilter(agentTypeFilter, uniqueValues(availableAgents, 'agentType'), 'All types');
+        renderAgents();
         loadLeads();
       } catch (error) {
         agentsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
       }
     }
 
+    function renderLeads() {
+      const query = leadSearch.value.trim().toLowerCase();
+      const leads = availableLeads.filter(lead => {
+        const haystack = [lead.name, lead.email, lead.phone].join(' ').toLowerCase();
+        const assignmentMatches = !leadAssignmentFilter.value ||
+          (leadAssignmentFilter.value === 'assigned' ? Boolean(lead.agent) : !lead.agent);
+        return (!query || haystack.includes(query)) &&
+          (!leadCourseFilter.value || lead.course === leadCourseFilter.value) &&
+          assignmentMatches;
+      });
+
+      leadResultCount.textContent = leads.length + ' of ' + availableLeads.length + ' leads shown';
+      if (!leads.length) {
+        leadsBody.innerHTML = '<tr><td colspan="8" class="empty">No leads match these filters.</td></tr>';
+        return;
+      }
+
+      const agents = filteredAgents().slice().sort((a, b) => {
+        const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
+        const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
+        return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
+      });
+
+      leadsBody.innerHTML = leads.map((lead) => {
+        const selectedAgent = availableAgents.find(a => String(a.id) === String(lead.agent));
+        const options = agents.map(agent => {
+          const selected = String(lead.agent) === String(agent.id) ? 'selected' : '';
+          const label = [agent.name || 'Agent ' + agent.id, agent.language, agent.agentType, agent.status]
+            .filter(Boolean).join(' · ');
+          return '<option value="' + safe(agent.id) + '" ' + selected + '>' + safe(label) + '</option>';
+        }).join('');
+        const keepSelected = selectedAgent && !agents.some(a => String(a.id) === String(selectedAgent.id))
+          ? '<option value="' + safe(selectedAgent.id) + '" selected>' + safe((selectedAgent.name || 'Agent ' + selectedAgent.id) + ' · currently assigned') + '</option>'
+          : '';
+
+        return `
+          <tr>
+            <td>#${safe(lead.id)}</td>
+            <td>${safe(lead.name || '—')}</td>
+            <td>${safe(lead.email || '—')}</td>
+            <td>${safe(lead.phone || '—')}</td>
+            <td>${lead.course ? '<span class="badge">' + safe(lead.course) + '</span>' : '—'}</td>
+            <td>
+              <select id="agent-select-${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}">
+                <option value="">Choose an agent</option>
+                ${keepSelected}${options}
+              </select>
+              <span class="agent-hint">${agents.length} matching agents</span>
+            </td>
+            <td>
+              <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}">
+                Call student
+              </button>
+            </td>
+            <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
     async function loadLeads() {
       leadsBody.innerHTML = '<tr><td colspan="8" class="empty">Loading leads…</td></tr>';
-
       try {
         const response = await fetch('/leads');
-        if (!response.ok) {
-          throw new Error('Unable to load leads');
-        }
-
+        if (!response.ok) throw new Error('Unable to load leads');
         const leads = await response.json();
-        if (!leads.length) {
-          leadsBody.innerHTML = '<tr><td colspan="8" class="empty">No leads have been submitted yet.</td></tr>';
-          return;
-        }
-
-        leadsBody.innerHTML = leads.map((lead) => {
-          const agentOptionsHtml = availableAgents.length > 0
-            ? availableAgents.map(a => `
-                <option value="${a.id}" ${String(lead.agent) === String(a.id) ? 'selected' : ''}>
-                  ${a.name ? `${a.name} (#${a.id})` : `Agent #${a.id}`}
-                </option>
-              `).join('')
-            : `<option value="${lead.agent || ''}">${lead.agent ? `Agent #${lead.agent}` : 'Select Agent'}</option>`;
-
-          return `
-            <tr>
-              <td>#${lead.id}</td>
-              <td>${lead.name || '—'}</td>
-              <td>${lead.email || '—'}</td>
-              <td>${lead.phone || '—'}</td>
-              <td>${lead.course ? `<span class="badge">${lead.course}</span>` : '—'}</td>
-              <td>
-                <select id="agent-select-${lead.id}" class="agent-select">
-                  <option value="">Choose Agent</option>
-                  ${agentOptionsHtml}
-                </select>
-              </td>
-              <td>
-                <button class="call-btn" id="call-btn-${lead.id}" type="button" onclick="triggerCallForLead(${lead.id}, '${lead.phone}')">
-                  📞 Call Student
-                </button>
-              </td>
-              <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
-            </tr>
-          `;
-        }).join('');
+        availableLeads = Array.isArray(leads) ? leads : [];
+        populateFilter(leadCourseFilter, uniqueValues(availableLeads, 'course'), 'All courses');
+        renderLeads();
       } catch (error) {
-        leadsBody.innerHTML = `<tr><td colspan="8" class="empty">${error.message}</td></tr>`;
+        leadsBody.innerHTML = '<tr><td colspan="8" class="empty">' + safe(error.message) + '</td></tr>';
       }
     }
 
@@ -501,6 +687,30 @@
         callsBody.innerHTML = `<tr><td colspan="10" class="empty">${error.message}</td></tr>`;
       }
     }
+
+    [agentSearch, agentStatusFilter, agentLanguageFilter, agentTypeFilter].forEach(control => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderAgents);
+    });
+    [leadSearch, leadCourseFilter, leadAssignmentFilter].forEach(control => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderLeads);
+    });
+    document.getElementById('clearAgentFilters').addEventListener('click', () => {
+      agentSearch.value = '';
+      agentStatusFilter.value = '';
+      agentLanguageFilter.value = '';
+      agentTypeFilter.value = '';
+      renderAgents();
+    });
+    document.getElementById('clearLeadFilters').addEventListener('click', () => {
+      leadSearch.value = '';
+      leadCourseFilter.value = '';
+      leadAssignmentFilter.value = '';
+      renderLeads();
+    });
+    leadsBody.addEventListener('click', (event) => {
+      const button = event.target.closest('.call-btn');
+      if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
+    });
 
     refreshAgentsBtn.addEventListener('click', loadAgents);
     refreshBtn.addEventListener('click', loadLeads);
