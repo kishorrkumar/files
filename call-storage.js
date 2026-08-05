@@ -115,11 +115,12 @@ async function upsertCall(callsPath, callData) {
     ? calls.findIndex(call => String(call.snapserve_call_id) === snapserveId)
     : -1;
 
-  if (index < 0 && !snapserveId) {
+  if (index < 0) {
     const incomingTime = new Date(callData.created_at || 0).getTime();
     index = calls.findIndex(call => {
       const existingTime = new Date(call.created_at || 0).getTime();
-      return normalizedPhone(call.phone) === normalizedPhone(callData.phone) &&
+      return !call.snapserve_call_id &&
+        normalizedPhone(call.phone) === normalizedPhone(callData.phone) &&
         String(call.agent_id) === String(callData.agent_id || '') &&
         Number.isFinite(incomingTime) && Number.isFinite(existingTime) &&
         Math.abs(existingTime - incomingTime) < 5000;
