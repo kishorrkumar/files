@@ -31,8 +31,9 @@ async function ensureSchema(sql) {
 async function appendLead(csvPath, lead) {
   const sql = getDatabase();
   if (!sql) return csvStorage.appendLead(csvPath, lead);
-  await ensureSchema(sql);
-  const rows = await sql`
+  try {
+    await ensureSchema(sql);
+    const rows = await sql`
     INSERT INTO leads (name, email, phone, course, agent, created_at)
     VALUES (
       ${lead.name || ''},
@@ -43,32 +44,46 @@ async function appendLead(csvPath, lead) {
       ${lead.created_at || new Date().toISOString()}
     )
     RETURNING id, name, email, phone, course, agent, created_at
-  `;
-  return rows[0];
+    `;
+    return rows[0];
+  } catch (error) {
+    console.error('Database lead insert failed; using CSV fallback:', error.message);
+    return csvStorage.appendLead(csvPath, lead);
+  }
 }
 
 async function getLeads(csvPath) {
   const sql = getDatabase();
   if (!sql) return csvStorage.getLeads(csvPath);
-  await ensureSchema(sql);
-  return sql`
-    SELECT id, name, email, phone, course, agent, created_at
-    FROM leads
-    ORDER BY created_at DESC
-  `;
+  try {
+    await ensureSchema(sql);
+    return await sql`
+      SELECT id, name, email, phone, course, agent, created_at
+      FROM leads
+      ORDER BY created_at DESC
+    `;
+  } catch (error) {
+    console.error('Database lead read failed; using CSV fallback:', error.message);
+    return csvStorage.getLeads(csvPath);
+  }
 }
 
 async function updateLeadAgent(csvPath, leadId, agentId) {
   const sql = getDatabase();
   if (!sql) return csvStorage.updateLeadAgent(csvPath, leadId, agentId);
-  await ensureSchema(sql);
-  const rows = await sql`
+  try {
+    await ensureSchema(sql);
+    const rows = await sql`
     UPDATE leads
     SET agent = ${String(agentId)}
     WHERE id = ${Number(leadId)}
     RETURNING id, name, email, phone, course, agent, created_at
-  `;
-  return rows[0] || null;
+    `;
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Database lead update failed; using CSV fallback:', error.message);
+    return csvStorage.updateLeadAgent(csvPath, leadId, agentId);
+  }
 }
 
 module.exports = { appendLead, getLeads, updateLeadAgent };
