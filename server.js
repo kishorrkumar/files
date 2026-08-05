@@ -66,13 +66,16 @@ app.post('/api/webhook/snapserve', handleSnapserveWebhook);
 app.post('/submit-lead', async (req, res) => {
 
   const { name, email, phone, course, agent } = req.body || {};
-  const allowedCourses = [
-    'UI/UX Design Mastery',
-    'Full-Stack Web Development',
-    'Filmmaking & Video Editing'
-  ];
+  const courseNames = {
+    'UI/UX Design': 'UI/UX Design Mastery',
+    'UI/UX Design Mastery': 'UI/UX Design Mastery',
+    'Full-Stack Development': 'Full-Stack Web Development',
+    'Full-Stack Web Development': 'Full-Stack Web Development',
+    'Filmmaking & Video Editing': 'Filmmaking & Video Editing'
+  };
+  const normalizedCourse = courseNames[course];
 
-  if (!allowedCourses.includes(course)) {
+  if (!normalizedCourse) {
     return res.status(400).json({ error: 'Please select a valid academy course' });
   }
 
@@ -95,7 +98,7 @@ app.post('/submit-lead', async (req, res) => {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      course: course || null,
+      course: normalizedCourse,
       agent: agent || null
     });
 
@@ -116,7 +119,7 @@ app.post('/submit-lead', async (req, res) => {
     try {
       const { webhookUrl } = getLeadWebhookConfig();
       if (webhookUrl) {
-        const payload = buildLeadWebhookPayload({ name, email, phone, course, source: 'landing_page_form' });
+        const payload = buildLeadWebhookPayload({ name, email, phone, course: normalizedCourse, source: 'landing_page_form' });
         const webhookResponse = await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
