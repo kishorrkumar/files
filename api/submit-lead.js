@@ -32,7 +32,21 @@ module.exports = async (req, res) => {
 
   try {
     const backendUrl = `${RENDER_API_URL.replace(/\/$/, '')}/submit-lead`;
-    const backendPayload = req.body || {};
+    const incomingPayload = req.body || {};
+    const courseNames = {
+      'UI/UX Design': 'UI/UX Design Mastery',
+      'UI/UX Design Mastery': 'UI/UX Design Mastery',
+      'Full-Stack Development': 'Full-Stack Web Development',
+      'Full-Stack Web Development': 'Full-Stack Web Development',
+      'Filmmaking & Video Editing': 'Filmmaking & Video Editing'
+    };
+    const normalizedCourse = courseNames[incomingPayload.course];
+
+    if (!normalizedCourse) {
+      return res.status(400).json({ error: 'Please select a valid academy course.' });
+    }
+
+    const backendPayload = { ...incomingPayload, course: normalizedCourse };
     const backendRes = await fetch(backendUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
