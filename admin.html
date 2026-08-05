@@ -761,8 +761,9 @@
       }
 
       select.disabled = true;
+      let response;
       try {
-        const response = await fetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
+        response = await fetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
           body: JSON.stringify({ agentId })
@@ -788,8 +789,9 @@
         return;
       }
       autoCallToggle.disabled = true;
+      let response;
       try {
-        const response = await fetch('/settings/auto-call', {
+        response = await fetch('/settings/auto-call', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
           body: JSON.stringify({ enabled })
