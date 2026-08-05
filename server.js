@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
-const { appendLead, getLeads, updateLeadAgent } = require('./csv-storage');
+const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { appendCall, getCalls } = require('./call-storage');
 
 const app = express();
@@ -66,6 +66,15 @@ app.post('/api/webhook/snapserve', handleSnapserveWebhook);
 app.post('/submit-lead', async (req, res) => {
 
   const { name, email, phone, course, agent } = req.body || {};
+  const allowedCourses = [
+    'UI/UX Design Mastery',
+    'Full-Stack Web Development',
+    'Filmmaking & Video Editing'
+  ];
+
+  if (!allowedCourses.includes(course)) {
+    return res.status(400).json({ error: 'Please select a valid academy course' });
+  }
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
     return res.status(400).json({ error: 'A valid name is required' });
