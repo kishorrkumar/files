@@ -708,14 +708,25 @@
           throw new Error(data.error || 'Failed to initiate call');
         }
 
-        callBtn.textContent = 'Call Placed ✓';
+        const call = data.call || {};
+        const status = String(call.status || '').toLowerCase();
+        const isQueued = call.queued || status === 'pending' || status === 'queued';
+
+        callBtn.textContent = isQueued ? 'Call queued' : 'Call started';
+        if (isQueued) {
+          const details = [
+            call.message || 'Waiting for the telephony provider.',
+            call.id != null ? 'Call ID: ' + call.id : '',
+            call.fromNumber ? 'From: ' + call.fromNumber : 'No caller number returned yet.'
+          ].filter(Boolean).join('\n');
+          alert(details);
+        }
+
         setTimeout(() => {
           callBtn.disabled = false;
-          callBtn.textContent = '📞 Call Student';
-        }, 3000);
-
-        // Refresh call logs
-        loadCalls();
+          callBtn.textContent = 'Call student';
+          loadCalls();
+        }, 5000);
       } catch (err) {
         alert('Error initiating call: ' + err.message);
         callBtn.disabled = false;
