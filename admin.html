@@ -378,12 +378,34 @@
         <h1>Snapserve Call Summaries & Details</h1>
         <button id="refreshCallsBtn" type="button">Refresh Calls</button>
       </div>
+      <div class="filter-bar" aria-label="Call log filters">
+        <div class="filter-field">
+          <label for="callSearch">Search calls</label>
+          <input id="callSearch" class="filter-input" type="search" placeholder="Student, phone, call ID or summary" />
+        </div>
+        <div class="filter-field">
+          <label for="callAgentFilter">Agent</label>
+          <select id="callAgentFilter" class="filter-input"><option value="">All agents</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="callCourseFilter">Course</label>
+          <select id="callCourseFilter" class="filter-input"><option value="">All courses</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="callStatusFilter">Call status</label>
+          <select id="callStatusFilter" class="filter-input"><option value="">All statuses</option></select>
+        </div>
+        <button id="clearCallFilters" class="clear-btn" type="button">Clear filters</button>
+      </div>
+      <div id="callResultCount" class="result-count">Loading calls…</div>
       <div class="table-wrap">
         <table id="callsTable">
           <thead>
             <tr>
               <th>ID</th>
+              <th>Student</th>
               <th>Agent</th>
+              <th>Course</th>
               <th>Phone</th>
               <th>Duration</th>
               <th>Status</th>
@@ -407,6 +429,11 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const callsBody = document.getElementById('callsBody');
     const refreshCallsBtn = document.getElementById('refreshCallsBtn');
+    const callSearch = document.getElementById('callSearch');
+    const callAgentFilter = document.getElementById('callAgentFilter');
+    const callCourseFilter = document.getElementById('callCourseFilter');
+    const callStatusFilter = document.getElementById('callStatusFilter');
+    const callResultCount = document.getElementById('callResultCount');
 
     const agentSearch = document.getElementById('agentSearch');
     const agentStatusFilter = document.getElementById('agentStatusFilter');
@@ -420,6 +447,7 @@
 
     let availableAgents = [];
     let availableLeads = [];
+    let availableCalls = [];
 
     const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -557,6 +585,7 @@
         availableLeads = Array.isArray(leads) ? leads : [];
         populateFilter(leadCourseFilter, uniqueValues(availableLeads, 'course'), 'All courses');
         renderLeads();
+        if (availableCalls.length) renderCalls();
       } catch (error) {
         leadsBody.innerHTML = '<tr><td colspan="8" class="empty">' + safe(error.message) + '</td></tr>';
       }
@@ -602,89 +631,95 @@
       }
     }
 
-    async function loadCalls() {
-      callsBody.innerHTML = '<tr><td colspan="10" class="empty">Loading call records…</td></tr>';
+    const normalizedPhone = (phone) => String(phone || '').replace(/\D/g, '').slice(-10);
 
+    function enrichCalls(calls) {
+      return calls.map(call => {
+        const lead = availableLeads.find(item =>
+          normalizedPhone(item.phone) && normalizedPhone(item.phone) === normalizedPhone(call.phone)
+        );
+        return {
+          ...call,
+          student_name: call.student_name || call.student || lead?.name || '',
+          course: call.course || lead?.course || '',
+          filter_agent: call.agent_name || String(call.agent_id || '')
+        };
+      });
+    }
+
+    function updateCallMetrics(calls) {
+      const totalCalls = calls.length;
+      const totalDuration = calls.reduce((sum, call) => sum + (Number(call.duration) || 0), 0);
+      const uniqueAgents = new Set(calls.map(call => call.filter_agent).filter(Boolean));
+      const successfulCalls = calls.filter(call => {
+        const evaluation = String(call.success_evaluation || '').toLowerCase();
+        return ['success', 'true', 'passed', 'completed', 'interested', 'yes'].some(word => evaluation.includes(word)) ||
+          String(call.status).toLowerCase() === 'completed';
+      }).length;
+
+      document.getElementById('totalCallsVal').textContent = totalCalls;
+      document.getElementById('avgDurationVal').textContent = (totalCalls ? Math.round(totalDuration / totalCalls) : 0) + 's';
+      document.getElementById('successRateVal').textContent = (totalCalls ? Math.round((successfulCalls / totalCalls) * 100) : 0) + '%';
+      document.getElementById('successRateDesc').textContent = totalCalls
+        ? successfulCalls + ' out of ' + totalCalls + ' filtered calls positive'
+        : 'Based on filtered call results';
+      document.getElementById('activeAgentsVal').textContent = uniqueAgents.size;
+    }
+
+    function renderCalls() {
+      const enriched = enrichCalls(availableCalls);
+      populateFilter(callAgentFilter, uniqueValues(enriched, 'filter_agent'), 'All agents');
+      populateFilter(callCourseFilter, uniqueValues(enriched, 'course'), 'All courses');
+      populateFilter(callStatusFilter, uniqueValues(enriched, 'status'), 'All statuses');
+
+      const query = callSearch.value.trim().toLowerCase();
+      const calls = enriched.filter(call => {
+        const haystack = [
+          call.id, call.student_name, call.phone, call.summary,
+          call.success_evaluation, call.filter_agent, call.course
+        ].join(' ').toLowerCase();
+        return (!query || haystack.includes(query)) &&
+          (!callAgentFilter.value || call.filter_agent === callAgentFilter.value) &&
+          (!callCourseFilter.value || call.course === callCourseFilter.value) &&
+          (!callStatusFilter.value || call.status === callStatusFilter.value);
+      });
+
+      callResultCount.textContent = calls.length + ' of ' + availableCalls.length + ' calls shown';
+      updateCallMetrics(calls);
+
+      if (!calls.length) {
+        callsBody.innerHTML = '<tr><td colspan="12" class="empty">No calls match these filters.</td></tr>';
+        return;
+      }
+
+      callsBody.innerHTML = calls.map((call) => `
+        <tr>
+          <td>#${safe(call.id)}</td>
+          <td>${safe(call.student_name || 'Not available')}</td>
+          <td>${call.filter_agent ? '<span class="badge">' + safe(call.filter_agent) + '</span>' : '—'}</td>
+          <td>${call.course ? '<span class="badge">' + safe(call.course) + '</span>' : 'Not available'}</td>
+          <td>${safe(call.phone || '—')}</td>
+          <td>${safe((Number(call.duration) || 0) + 's')}</td>
+          <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
+          <td style="max-width:250px;font-size:0.9rem;">${safe(call.summary || '—')}</td>
+          <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
+          <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
+          <td style="max-width:250px;">${call.transcript ? '<details><summary style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.85rem;">View transcript</summary><pre style="white-space:pre-wrap;font-size:0.8rem;background:#f5f3ff;padding:8px;border-radius:6px;margin-top:6px;max-height:150px;overflow-y:auto;">' + safe(call.transcript) + '</pre></details>' : '—'}</td>
+          <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadCalls() {
+      callsBody.innerHTML = '<tr><td colspan="12" class="empty">Loading call records…</td></tr>';
       try {
         const response = await fetch('/calls');
-        if (!response.ok) {
-          throw new Error('Unable to load call logs');
-        }
-
+        if (!response.ok) throw new Error('Unable to load call logs');
         const calls = await response.json();
-        if (!calls.length) {
-          callsBody.innerHTML = '<tr><td colspan="10" class="empty">No call records recorded yet.</td></tr>';
-          document.getElementById('totalCallsVal').textContent = '0';
-          document.getElementById('avgDurationVal').textContent = '0s';
-          document.getElementById('successRateVal').textContent = '0%';
-          document.getElementById('successRateDesc').textContent = 'Based on success evaluation';
-          document.getElementById('activeAgentsVal').textContent = '0';
-          return;
-        }
-
-        // Calculate metrics
-        const totalCalls = calls.length;
-        let totalDuration = 0;
-        let successfulCalls = 0;
-        const uniqueAgents = new Set();
-
-        calls.forEach(call => {
-          totalDuration += Number(call.duration) || 0;
-          if (call.agent_name || call.agent_id) {
-            uniqueAgents.add(call.agent_name || call.agent_id);
-          }
-          
-          const hasSuccessKeyword = call.success_evaluation && 
-            (call.success_evaluation.toLowerCase().includes('success') || 
-             call.success_evaluation.toLowerCase().includes('true') || 
-             call.success_evaluation.toLowerCase().includes('passed') || 
-             call.success_evaluation.toLowerCase().includes('completed') ||
-             call.success_evaluation.toLowerCase().includes('interested') ||
-             call.success_evaluation.toLowerCase().includes('yes'));
-
-          if (hasSuccessKeyword || call.status === 'completed') {
-            successfulCalls++;
-          }
-        });
-
-        const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
-        const successRate = totalCalls > 0 ? Math.round((successfulCalls / totalCalls) * 100) : 0;
-
-        document.getElementById('totalCallsVal').textContent = totalCalls;
-        document.getElementById('avgDurationVal').textContent = avgDuration + 's';
-        document.getElementById('successRateVal').textContent = successRate + '%';
-        document.getElementById('successRateDesc').textContent = `${successfulCalls} out of ${totalCalls} calls positive`;
-        document.getElementById('activeAgentsVal').textContent = uniqueAgents.size;
-
-        callsBody.innerHTML = calls.map((call) => `
-          <tr>
-            <td>#${call.id}</td>
-            <td>${call.agent_name || call.agent_id ? `<span class="badge">${call.agent_name || call.agent_id}</span>` : '—'}</td>
-            <td>${call.phone || '—'}</td>
-            <td>${call.duration ? call.duration + 's' : '0s'}</td>
-            <td><span class="badge" style="background:${call.status === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${call.status === 'completed' ? '#1f7a1e' : '#c52828'};">${call.status || 'unknown'}</span></td>
-            <td style="max-width: 250px; font-size: 0.9rem;">${call.summary || '—'}</td>
-            <td style="max-width: 200px; font-size: 0.9rem;">${call.success_evaluation || '—'}</td>
-            <td>
-              ${call.recording_url ? `
-                <a href="${call.recording_url}" target="_blank" class="badge" style="background:#e0f2fe; color:#0369a1; text-decoration:none; display:inline-flex; align-items:center; gap:4px; font-weight:600;">
-                  ▶ Play
-                </a>
-              ` : '—'}
-            </td>
-            <td style="max-width: 250px;">
-              ${call.transcript ? `
-                <details>
-                  <summary style="cursor:pointer; color:var(--accent); font-weight:600; font-size:0.85rem;">View Transcript</summary>
-                  <pre style="white-space:pre-wrap; font-size:0.8rem; background:#f5f3ff; padding:8px; border-radius:6px; margin-top:6px; max-height:150px; overflow-y:auto;">${call.transcript}</pre>
-                </details>
-              ` : '—'}
-            </td>
-            <td style="font-size:0.85rem;">${call.created_at ? new Date(call.created_at).toLocaleString() : '—'}</td>
-          </tr>
-        `).join('');
+        availableCalls = Array.isArray(calls) ? calls : [];
+        renderCalls();
       } catch (error) {
-        callsBody.innerHTML = `<tr><td colspan="10" class="empty">${error.message}</td></tr>`;
+        callsBody.innerHTML = '<tr><td colspan="12" class="empty">' + safe(error.message) + '</td></tr>';
       }
     }
 
@@ -693,6 +728,9 @@
     });
     [leadSearch, leadCourseFilter, leadAssignmentFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderLeads);
+    });
+    [callSearch, callAgentFilter, callCourseFilter, callStatusFilter].forEach(control => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderCalls);
     });
     document.getElementById('clearAgentFilters').addEventListener('click', () => {
       agentSearch.value = '';
@@ -706,6 +744,13 @@
       leadCourseFilter.value = '';
       leadAssignmentFilter.value = '';
       renderLeads();
+    });
+    document.getElementById('clearCallFilters').addEventListener('click', () => {
+      callSearch.value = '';
+      callAgentFilter.value = '';
+      callCourseFilter.value = '';
+      callStatusFilter.value = '';
+      renderCalls();
     });
     leadsBody.addEventListener('click', (event) => {
       const button = event.target.closest('.call-btn');
