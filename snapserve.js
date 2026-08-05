@@ -76,6 +76,12 @@ async function initiateOutboundCall({ phone, agentId, apiKey, webhookBaseUrl }) 
   if (!resolvedApiKey) {
     throw new Error('SNAPSERVE_API_KEY is not configured');
   }
+  if (resolvedAgentId === '' || resolvedAgentId == null) {
+    throw new Error('A valid SnapServe agent ID is required');
+  }
+  if (!normalizePhoneForSnapserve(phone)) {
+    throw new Error('A valid destination phone number is required');
+  }
 
   const payload = buildOutboundCallPayload(phone, resolvedAgentId, resolvedWebhookBaseUrl);
   console.log('[Snapserve Outbound Payload]', JSON.stringify(payload));
@@ -97,7 +103,19 @@ async function initiateOutboundCall({ phone, agentId, apiKey, webhookBaseUrl }) 
     throw new Error(`Snapserve API error (${response.status}): ${detail}`);
   }
 
-  return data;
+  const status = String(data.status || '').toLowerCase();
+  if (data.errorMessage || ['failed', 'error', 'rejected', 'cancelled'].includes(status)) {
+    const detail = data.errorMessage || data.recordingError || `Call status: ${status}`;
+    throw new Error(`Snapserve telephony error: ${detail}`);
+  }
+
+  return {
+    ...data,
+    queued: status === 'pending' || status === 'queued',
+    message: status === 'pending' || status === 'queued'
+      ? 'Call accepted by SnapServe and waiting for the telephony provider.'
+      : 'Call started successfully.'
+  };
 }
 
 async function fetchSnapserveAgents() {
@@ -111,7 +129,6 @@ async function fetchSnapserveAgents() {
 
   try {
     console.log('[Snapserve] Fetching agents from API...');
-    console.log('[Snapserve] API Key (first 30):', apiKey.substring(0, 30));
     const response = await fetch(`${SNAPSERVE_API_BASE_URL.replace(/\/$/, '')}/agents`, {
       method: 'GET',
       headers: {
