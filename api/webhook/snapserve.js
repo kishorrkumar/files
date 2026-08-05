@@ -9,6 +9,13 @@ const RENDER_API_URL = process.env.RENDER_API_URL;
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, '..', '..', 'data', 'calls.csv');
 const WEBHOOK_SECRET = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
 
+function normalizeCallStatus(status, call = {}) {
+  const normalized = String(status || '').toLowerCase();
+  const hasCompletedData = Number(call.duration || 0) > 0 &&
+    Boolean(call.summary || call.transcript || call.recording_url);
+  return (!normalized || normalized === 'unknown') && hasCompletedData ? 'completed' : (normalized || 'unknown');
+}
+
 function normalizeTranscript(value) {
   if (!value) return '';
   if (typeof value === 'string') return value;
@@ -57,7 +64,10 @@ module.exports = async (req, res) => {
     body.transcript || body.call_transcript || body.callTranscript ||
     body.call?.transcript || body.analysis?.transcript || body.messages
   );
-  const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
+  const status = normalizeCallStatus(
+    body.status || body.call_status || body.callStatus || body.event || body.type,
+    { duration, summary, transcript, recording_url }
+  );
 
   // 1. Store locally in CSV
   try {
@@ -71,7 +81,9 @@ module.exports = async (req, res) => {
       success_evaluation,
       recording_url,
       transcript,
-      status
+      status,
+      created_at: body.createdAt || body.created_at || body.call?.createdAt || '',
+      ended_at: body.endedAt || body.ended_at || body.call?.endedAt || ''
     });
   } catch (csvErr) {
     console.error('CSV call append error:', csvErr);
