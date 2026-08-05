@@ -13,6 +13,13 @@ const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'c
 
 app.use(express.json());
 
+function normalizeCallStatus(status, call = {}) {
+  const normalized = String(status || '').toLowerCase();
+  const hasCompletedData = Number(call.duration || call.durationSeconds || 0) > 0 &&
+    Boolean(call.summary || call.callSummary || call.transcript || call.recording_url || call.recordingUrl);
+  return (!normalized || normalized === 'unknown') && hasCompletedData ? 'completed' : (normalized || 'unknown');
+}
+
 function normalizeTranscript(value) {
   if (!value) return '';
   if (typeof value === 'string') return value;
@@ -53,7 +60,10 @@ const handleSnapserveWebhook = async (req, res) => {
     body.transcript || body.call_transcript || body.callTranscript ||
     body.call?.transcript || body.analysis?.transcript || body.messages
   );
-  const status = body.status || body.call_status || body.callStatus || body.event || body.type || 'completed';
+  const status = normalizeCallStatus(
+    body.status || body.call_status || body.callStatus || body.event || body.type,
+    { duration, summary, transcript, recording_url }
+  );
 
   try {
     const result = await upsertCall(CALLS_PATH, {
@@ -66,7 +76,9 @@ const handleSnapserveWebhook = async (req, res) => {
       success_evaluation,
       recording_url,
       transcript,
-      status
+      status,
+      created_at: body.createdAt || body.created_at || body.call?.createdAt || '',
+      ended_at: body.endedAt || body.ended_at || body.call?.endedAt || ''
     });
     console.log('Saved call record to CSV:', result);
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
@@ -212,7 +224,7 @@ app.get('/calls', async (req, res) => {
     const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
     if (apiKey) {
       try {
-        const response = await fetch('https://app.snapserve.ai/api/calls?limit=100', {
+        const response = await fetch('https://app.snapserve.ai/api/calls?limit=500', {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Accept': 'application/json'
@@ -238,8 +250,9 @@ app.get('/calls', async (req, res) => {
                 success_evaluation: call.successEvaluation || '',
                 recording_url: recordingUrl,
                 transcript: normalizeTranscript(call.transcript || call.messages),
-                status: call.status || 'unknown',
-                created_at: call.createdAt || new Date().toISOString()
+                status: normalizeCallStatus(call.status, call),
+                created_at: call.createdAt || call.startedAt || '',
+                ended_at: call.endedAt || ''
               });
             }
 
