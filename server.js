@@ -22,6 +22,28 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+const COURSE_AGENT_KEYWORDS = {
+  'UI/UX Design Mastery': ['ui', 'ux', 'design'],
+  'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
+  'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
+};
+
+async function selectAgentForCourse(course) {
+  const keywords = COURSE_AGENT_KEYWORDS[course] || [];
+  if (!keywords.length) return null;
+  const agents = await fetchSnapserveAgents();
+  const matches = agents.filter(agent => {
+    const name = String(agent.name || '').toLowerCase();
+    return keywords.some(keyword => name.includes(keyword));
+  });
+  matches.sort((a, b) => {
+    const activeA = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
+    const activeB = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
+    return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
+  });
+  return matches[0] || null;
+}
+
 function normalizeCallStatus(status, call = {}) {
   const normalized = String(status || '').toLowerCase();
   const hasCompletedData = Number(call.duration || call.durationSeconds || 0) > 0 &&
@@ -132,17 +154,19 @@ app.post('/submit-lead', async (req, res) => {
   }
 
   try {
+    const courseAgent = agent ? null : await selectAgentForCourse(normalizedCourse);
+    const assignedAgentId = agent || courseAgent?.id || null;
     const result = await appendLead(CSV_PATH, {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
       course: normalizedCourse,
-      agent: agent || null
+      agent: assignedAgentId
     });
 
     try {
       const autoCallEnabled = await getAutoCallEnabled();
-      const agentId = process.env.SNAPSERVE_AGENT_ID || '';
+      const agentId = assignedAgentId || process.env.SNAPSERVE_AGENT_ID || '';
       if (autoCallEnabled && agentId) {
         const call = await initiateOutboundCall({
           phone,
@@ -194,6 +218,18 @@ app.get('/agents', async (req, res) => {
 app.get('/leads', async (req, res) => {
   try {
     const leads = await getLeads(CSV_PATH);
+    const courseDefaults = new Map();
+    for (const lead of leads) {
+      if (lead.agent || !lead.course) continue;
+      if (!courseDefaults.has(lead.course)) {
+        courseDefaults.set(lead.course, await selectAgentForCourse(lead.course));
+      }
+      const courseAgent = courseDefaults.get(lead.course);
+      if (courseAgent?.id) {
+        await updateLeadAgent(CSV_PATH, lead.id, courseAgent.id);
+        lead.agent = String(courseAgent.id);
+      }
+    }
     return res.status(200).json(leads);
   } catch (err) {
     console.error('get-leads error:', err);
