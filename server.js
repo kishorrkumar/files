@@ -5,6 +5,7 @@ const path = require('path');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
+const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,6 +13,14 @@ const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, 'data', 'lea
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'calls.csv');
 
 app.use(express.json());
+
+function requireAdmin(req, res, next) {
+  const expected = process.env.ADMIN_API_KEY || '';
+  const received = req.headers['x-admin-key'] || '';
+  if (!expected) return res.status(503).json({ error: 'ADMIN_API_KEY is not configured.' });
+  if (received !== expected) return res.status(401).json({ error: 'Invalid admin key.' });
+  next();
+}
 
 function normalizeCallStatus(status, call = {}) {
   const normalized = String(status || '').toLowerCase();
@@ -132,17 +141,18 @@ app.post('/submit-lead', async (req, res) => {
     });
 
     try {
+      const autoCallEnabled = await getAutoCallEnabled();
       const agentId = process.env.SNAPSERVE_AGENT_ID || '';
-      if (agentId) {
+      if (autoCallEnabled && agentId) {
         const call = await initiateOutboundCall({
           phone,
           agentId,
           apiKey: process.env.SNAPSERVE_API_KEY
         });
-        console.log('Snapserve call initiated:', call);
+        console.log('Automatic Snapserve call initiated:', call);
       }
     } catch (callErr) {
-      console.error('Snapserve call initiation failed:', callErr);
+      console.error('Automatic Snapserve call initiation failed:', callErr);
     }
 
     try {
@@ -188,6 +198,37 @@ app.get('/leads', async (req, res) => {
   } catch (err) {
     console.error('get-leads error:', err);
     return res.status(500).json({ error: 'Could not read leads.' });
+  }
+});
+
+app.patch('/leads/:id/agent', requireAdmin, async (req, res) => {
+  const { agentId } = req.body || {};
+  if (!agentId) return res.status(400).json({ error: 'Agent ID is required.' });
+  try {
+    const lead = await updateLeadAgent(CSV_PATH, req.params.id, agentId);
+    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+    return res.status(200).json({ success: true, lead });
+  } catch (error) {
+    console.error('update-lead-agent error:', error);
+    return res.status(500).json({ error: 'Could not save the selected agent.' });
+  }
+});
+
+app.get('/settings', requireAdmin, async (req, res) => {
+  try {
+    return res.status(200).json({ auto_call_enabled: await getAutoCallEnabled() });
+  } catch (error) {
+    return res.status(500).json({ error: 'Could not load settings.' });
+  }
+});
+
+app.post('/settings/auto-call', requireAdmin, async (req, res) => {
+  try {
+    const enabled = await setAutoCallEnabled(req.body?.enabled === true);
+    return res.status(200).json({ success: true, auto_call_enabled: enabled });
+  } catch (error) {
+    console.error('auto-call-setting error:', error);
+    return res.status(500).json({ error: 'Could not save auto call setting.' });
   }
 });
 
