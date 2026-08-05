@@ -528,6 +528,7 @@
     let availableAgents = [];
     let availableLeads = [];
     let availableCalls = [];
+    let visibleCalls = [];
 
     const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -790,6 +791,7 @@
           (!callStatusFilter.value || call.status === callStatusFilter.value);
       });
 
+      visibleCalls = calls;
       callResultCount.textContent = calls.length + ' academy calls shown';
       updateCallMetrics(calls);
 
@@ -798,7 +800,7 @@
         return;
       }
 
-      callsBody.innerHTML = calls.map((call) => `
+      callsBody.innerHTML = calls.map((call, callIndex) => `
         <tr>
           <td>#${safe(call.id)}</td>
           <td>${safe(call.student_name || 'Not available')}</td>
@@ -807,7 +809,7 @@
           <td>${safe(call.phone || '—')}</td>
           <td>${safe((Number(call.duration) || 0) + 's')}</td>
           <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
-          <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-call-id="' + safe(call.id) + '">View summary</button>' : '—'}</td>
+          <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-summary-index="' + callIndex + '">View summary</button>' : '—'}</td>
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
           <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
           <td style="max-width:250px;">${call.transcript ? '<details><summary style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.85rem;">View transcript</summary><pre style="white-space:pre-wrap;font-size:0.8rem;background:#f5f3ff;padding:8px;border-radius:6px;margin-top:6px;max-height:150px;overflow-y:auto;">' + safe(call.transcript) + '</pre></details>' : '—'}</td>
@@ -816,18 +818,37 @@
       `).join('');
     }
 
-    function openSummary(callId) {
-      const call = enrichCalls(availableCalls).find(item => String(item.id) === String(callId));
-      if (!call) return;
-      document.getElementById('summaryModalTitle').textContent = (call.student_name || 'Student') + ' — Call summary';
-      document.getElementById('summaryModalMeta').textContent =
-        [call.course, call.filter_agent, call.phone].filter(Boolean).join(' · ');
-      document.getElementById('summaryModalCopy').textContent = call.summary || 'No summary available.';
+    function openSummary(summaryIndex) {
+      const call = visibleCalls[Number(summaryIndex)];
+      if (!call) {
+        alert('This call summary is no longer available. Please refresh the call logs.');
+        return;
+      }
+
+      const title = call.student_name && call.student_name !== 'Not available'
+        ? call.student_name + ' — Call summary'
+        : 'Call summary';
+      const meta = [
+        call.course,
+        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
+        call.phone,
+        call.status ? 'Status: ' + call.status : ''
+      ].filter(Boolean);
+
+      document.getElementById('summaryModalTitle').textContent = title;
+      document.getElementById('summaryModalMeta').textContent = meta.join(' · ');
+      document.getElementById('summaryModalCopy').textContent =
+        typeof call.summary === 'string'
+          ? call.summary
+          : JSON.stringify(call.summary, null, 2);
       document.getElementById('summaryModal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      document.getElementById('closeSummaryModal').focus();
     }
 
     function closeSummary() {
       document.getElementById('summaryModal').classList.remove('open');
+      document.body.style.overflow = '';
     }
 
     async function loadCalls() {
@@ -878,7 +899,7 @@
     });
     callsBody.addEventListener('click', (event) => {
       const button = event.target.closest('.summary-btn');
-      if (button) openSummary(button.dataset.callId);
+      if (button) openSummary(button.dataset.summaryIndex);
     });
     document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
     document.getElementById('summaryModal').addEventListener('click', (event) => {
