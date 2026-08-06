@@ -78,10 +78,28 @@ module.exports = async (req, res) => {
           ? res.json(JSON.parse(bodyText || '{}'))
           : res.send(bodyText);
       }
-      console.error('Render lead submission failed; saving directly:', backendRes.status, bodyText);
+      console.error('Render lead submission failed:', backendRes.status, bodyText);
+      const backendBody = (() => {
+        try { return JSON.parse(bodyText || '{}'); } catch { return {}; }
+      })();
+      return res.status(backendRes.status).json({
+        error: backendBody.error || 'The admissions service is temporarily unavailable. Please try again shortly.'
+      });
     } catch (error) {
-      console.error('Render unavailable; saving lead directly:', error.message);
+      console.error('Render unavailable:', error.message);
+      if (!process.env.DATABASE_URL) {
+        return res.status(503).json({
+          error: 'The admissions service is temporarily unavailable. Please try again shortly.'
+        });
+      }
     }
+  }
+
+  if (!process.env.DATABASE_URL) {
+    console.error('Lead submission storage is not configured: set RENDER_API_URL or DATABASE_URL.');
+    return res.status(503).json({
+      error: 'The admissions service is temporarily unavailable. Please try again shortly.'
+    });
   }
 
   try {
@@ -105,6 +123,8 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error('Direct lead storage failed:', error);
-    return res.status(500).json({ error: 'Unable to save your details right now.' });
+    return res.status(503).json({
+      error: 'The admissions service is temporarily unavailable. Please try again shortly.'
+    });
   }
 };
