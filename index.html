@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%236f4ff2%22/><path d=%22M16 19h32v8H36v24h-8V27H16z%22 fill=%22white%22/></svg>">
 <title>ThinkCreator Academy — Learn Like You Mean It</title>
 <meta name="description" content="ThinkCreator Academy — hands-on courses in Design, Development and Filmmaking. Enroll your interest today.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -370,6 +371,12 @@
   .field .err{
     font-size:12.5px; color:var(--coral); margin-top:6px; min-height:15px; font-family:'IBM Plex Mono',monospace;
   }
+  .form-status{
+    display:none; margin-top:14px; padding:12px 14px; border:1px solid rgba(240,85,63,.35);
+    border-radius:10px; background:rgba(240,85,63,.08); color:#b83220;
+    font-size:13px; line-height:1.5; font-family:'IBM Plex Mono',monospace;
+  }
+  .form-status.show{display:block;}
   .submit-btn{
     width:100%; background:var(--ink); color:var(--paper);
     border:none; padding:16px; border-radius:12px; font-weight:700; font-size:15.5px;
@@ -617,6 +624,7 @@
             </div>
 
             <button type="submit" class="submit-btn" id="submitBtn">Submit my details</button>
+            <div class="form-status" id="formStatus" role="alert" aria-live="polite"></div>
             <p class="form-note">By submitting, you agree to be contacted by ThinkCreator Academy.</p>
           </div>
 
@@ -671,6 +679,12 @@
   const fields = document.getElementById('formFields');
   const successBox = document.getElementById('successBox');
   const submitBtn = document.getElementById('submitBtn');
+  const formStatus = document.getElementById('formStatus');
+
+  function setFormStatus(message){
+    formStatus.textContent = message || '';
+    formStatus.classList.toggle('show', Boolean(message));
+  }
 
   function setError(id, msg){
     document.getElementById('err-' + id).textContent = msg || '';
@@ -717,6 +731,7 @@
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
+    setFormStatus('');
     if(!validate()) return;
 
     submitBtn.disabled = true;
@@ -749,7 +764,7 @@
       .catch((err) => {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit my details';
-        setError('email', err.message || 'Something went wrong — please try again.');
+        setFormStatus(err.message || 'We could not submit your details. Please try again in a moment.');
       });
   });
 </script>
