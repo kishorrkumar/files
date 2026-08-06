@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const crypto = require('node:crypto');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
@@ -14,41 +15,48 @@ const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'c
 
 app.use(express.json());
 
+function sessionSecret() {
+  return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '';
+}
+
+function createAdminToken() {
+  const expiresAt = Date.now() + (8 * 60 * 60 * 1000);
+  const signature = crypto.createHmac('sha256', sessionSecret()).update(String(expiresAt)).digest('hex');
+  return `${expiresAt}.${signature}`;
+}
+
+function validAdminToken(token) {
+  const [expiresAt, signature] = String(token || '').split('.');
+  if (!expiresAt || !signature || Number(expiresAt) < Date.now() || !sessionSecret()) return false;
+  const expected = crypto.createHmac('sha256', sessionSecret()).update(expiresAt).digest('hex');
+  if (signature.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+function adminSessionFromRequest(req) {
+  const cookies = Object.fromEntries(
+    String(req.headers.cookie || '').split(';').filter(Boolean).map(part => {
+      const index = part.indexOf('=');
+      return [part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1))];
+    })
+  );
+  return validAdminToken(cookies.tca_admin_session);
+}
+
 function requireAdmin(req, res, next) {
-  const expected = process.env.ADMIN_API_KEY || '';
-  const received = req.headers['x-admin-key'] || '';
-  if (!expected) return res.status(503).json({ error: 'ADMIN_API_KEY is not configured.' });
-  if (received !== expected) return res.status(401).json({ error: 'Invalid admin key.' });
+  if (!adminSessionFromRequest(req)) return res.status(401).json({ error: 'Admin login required.' });
   next();
 }
 
-const COURSE_AGENT_KEYWORDS = {
-  'UI/UX Design Mastery': ['ui', 'ux', 'design'],
-  'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
-  'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
-};
-
-async function selectAgentForCourse(course) {
-  const keywords = COURSE_AGENT_KEYWORDS[course] || [];
-  if (!keywords.length) return null;
-  const agents = await fetchSnapserveAgents();
-  const matches = agents.filter(agent => {
-    const name = String(agent.name || '').toLowerCase();
-    return keywords.some(keyword => name.includes(keyword));
-  });
-  matches.sort((a, b) => {
-    const activeA = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
-    const activeB = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
-    return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
-  });
-  return matches[0] || null;
+function requireAdminPage(req, res, next) {
+  if (!adminSessionFromRequest(req)) return res.redirect('/admin/login');
+  next();
 }
 
-function normalizeCallStatus(status, call = {}) {
-  const normalized = String(status || '').toLowerCase();
-  const hasCompletedData = Number(call.duration || call.durationSeconds || 0) > 0 &&
-    Boolean(call.summary || call.callSummary || call.transcript || call.recording_url || call.recordingUrl);
-  return (!normalized || normalized === 'unknown') && hasCompletedData ? 'completed' : (normalized || 'unknown');
+function safePasswordMatch(received, expected) {
+  const left = Buffer.from(String(received || ''));
+  const right = Buffer.from(String(expected || ''));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
 function normalizeTranscript(value) {
@@ -205,7 +213,7 @@ app.post('/submit-lead', async (req, res) => {
   }
 });
 
-app.get('/agents', async (req, res) => {
+app.get('/agents', requireAdmin, async (req, res) => {
   try {
     const agents = await fetchSnapserveAgents();
     return res.status(200).json(agents);
@@ -215,7 +223,7 @@ app.get('/agents', async (req, res) => {
   }
 });
 
-app.get('/leads', async (req, res) => {
+app.get('/leads', requireAdmin, async (req, res) => {
   try {
     const leads = await getLeads(CSV_PATH);
     const courseDefaults = new Map();
@@ -268,7 +276,7 @@ app.post('/settings/auto-call', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/call-lead', async (req, res) => {
+app.post('/call-lead', requireAdmin, async (req, res) => {
   const { leadId, agentId, phone } = req.body || {};
 
   if (!phone || !agentId) {
@@ -294,7 +302,7 @@ app.post('/call-lead', async (req, res) => {
   }
 });
 
-app.get('/calls', async (req, res) => {
+app.get('/calls', requireAdmin, async (req, res) => {
   try {
     let calls = await getCalls(CALLS_PATH);
 
@@ -348,7 +356,34 @@ app.get('/calls', async (req, res) => {
   }
 });
 
-app.get('/admin', (req, res) => {
+app.get('/admin/login', (req, res) => {
+  if (adminSessionFromRequest(req)) return res.redirect('/admin');
+  res.sendFile(path.join(__dirname, 'admin-login.html'));
+});
+
+app.post('/admin/login', (req, res) => {
+  const configuredPassword = process.env.ADMIN_PASSWORD || '';
+  if (!configuredPassword || !sessionSecret()) {
+    return res.status(503).json({ error: 'Admin login is not configured.' });
+  }
+  if (!safePasswordMatch(req.body?.password, configuredPassword)) {
+    return res.status(401).json({ error: 'Incorrect admin password.' });
+  }
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.setHeader(
+    'Set-Cookie',
+    `tca_admin_session=${encodeURIComponent(createAdminToken())}; HttpOnly; Path=/; Max-Age=28800; SameSite=Strict${secure}`
+  );
+  return res.status(200).json({ success: true });
+});
+
+app.post('/admin/logout', requireAdmin, (req, res) => {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `tca_admin_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict${secure}`);
+  return res.status(200).json({ success: true });
+});
+
+app.get('/admin', requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
