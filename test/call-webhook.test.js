@@ -13,6 +13,8 @@ test('appends call records to CSV and retrieves them accurately', async () => {
     agent_id: 'agent-001',
     agent_name: 'Admissions Assistant',
     phone: '+919876543210',
+    student_name: 'Aditi Rao',
+    course: 'UI/UX Design Mastery',
     duration: 145,
     summary: 'Lead expressed interest in UI/UX Design course.',
     success_evaluation: 'success',
@@ -34,4 +36,6 @@ test('appends call records to CSV and retrieves them accurately', async () => {
   assert.equal(calls[0].success_evaluation, 'success');
   assert.equal(calls[0].recording_url, 'https://app.snapserve.ai/recordings/call-123.mp3');
   assert.equal(calls[0].phone, '+919876543210');
+  assert.equal(calls[0].student_name, 'Aditi Rao');
+  assert.equal(calls[0].course, 'UI/UX Design Mastery');
 });
