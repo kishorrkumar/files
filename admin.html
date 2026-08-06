@@ -946,9 +946,7 @@
     }
 
     function renderCalls() {
-      const enriched = deduplicateCalls(enrichCalls(availableCalls)).filter(call =>
-        ACADEMY_COURSES.includes(call.course)
-      );
+      const enriched = deduplicateCalls(enrichCalls(availableCalls));
       const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
       populateFilter(callAgentFilter, relatedAgentNames, 'All related agents');
       populateFilter(callCourseFilter, ACADEMY_COURSES, 'All three courses');
@@ -967,7 +965,7 @@
       });
 
       visibleCalls = calls;
-      callResultCount.textContent = calls.length + ' academy calls shown';
+      callResultCount.textContent = calls.length + ' calls shown';
       updateCallMetrics(calls);
 
       if (!calls.length) {
