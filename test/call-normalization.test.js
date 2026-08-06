@@ -13,13 +13,16 @@ test('normalizes a completed SnapServe call with summary and transcript', () => 
       durationSeconds: 90,
       callSummary: 'Student is interested in the full-stack course.',
       messages: [{ role: 'agent', text: 'Hello' }, { role: 'student', text: 'I am interested' }],
-      recordingUrl: '/recordings/call-42.mp3'
+      recordingUrl: '/recordings/call-42.mp3',
+      metadata: { name: 'Kishore Kumar', course: 'Full-Stack Web Development' }
     }
   });
 
   assert.equal(call.snapserve_call_id, '42');
   assert.equal(call.status, 'completed');
   assert.equal(call.summary, 'Student is interested in the full-stack course.');
+  assert.equal(call.student_name, 'Kishore Kumar');
+  assert.equal(call.course, 'Full-Stack Web Development');
   assert.match(call.transcript, /student: I am interested/);
   assert.equal(call.recording_url, 'https://app.snapserve.ai/recordings/call-42.mp3');
 });
