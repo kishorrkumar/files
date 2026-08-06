@@ -21,6 +21,9 @@ function normalizeCallStatus(status, call = {}) {
 
 function callFromPayload(body = {}) {
   const call = body.call || body.payload?.call || body.payload || body;
+  const metadata = call.metadata || body.metadata || body.payload?.metadata || {};
+  const variables = call.variables || call.dynamicVariables || body.variables || body.dynamicVariables ||
+    body.payload?.variables || body.payload?.dynamicVariables || {};
   const recording = call.recordingUrl || call.recording_url || body.recordingUrl || body.recording_url || '';
   const recordingUrl = recording.startsWith('/') ? `https://app.snapserve.ai${recording}` : recording;
   const transcript = normalizeTranscript(
@@ -39,6 +42,12 @@ function callFromPayload(body = {}) {
     agent_id: String(call.agentId || call.agent_id || call.agent?.id || body.agentId || body.agent_id || body.agent?.id || ''),
     agent_name: call.agentName || call.agent_name || call.agent?.name || body.agentName || body.agent_name || body.agent?.name || '',
     phone: call.toNumber || call.phone || call.fromNumber || body.toNumber || body.phone || body.fromNumber || '',
+    student_name: call.studentName || call.student_name || call.customerName || call.customer_name ||
+      call.leadName || call.lead_name || body.studentName || body.student_name || body.customerName ||
+      body.customer_name || body.leadName || body.lead_name || metadata.name || metadata.student_name ||
+      variables.name || variables.student_name || '',
+    course: call.course || call.courseName || call.course_name || body.course || body.courseName ||
+      body.course_name || metadata.course || variables.course || '',
     duration,
     summary,
     success_evaluation: call.successEvaluation || call.success_evaluation || body.successEvaluation || body.success_evaluation || body.analysis?.successEvaluation || '',
