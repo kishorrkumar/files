@@ -4,7 +4,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
-const { selectAgentForCourse } = require('./course-agent');
+const { selectAgentForCourse, courseForAgentName } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
 const { callFromPayload, callsFromResponse } = require('./call-normalization');
@@ -299,6 +299,22 @@ app.get('/calls', requireAdmin, async (req, res) => {
         console.error('Failed to sync calls from Snapserve API:', syncErr);
       }
     }
+
+    const leads = await getLeads(CSV_PATH);
+    const leadByPhone = new Map(
+      leads
+        .filter((lead) => String(lead.phone || '').replace(/\D/g, '').slice(-10))
+        .map((lead) => [String(lead.phone).replace(/\D/g, '').slice(-10), lead])
+    );
+    calls = calls.map((call) => {
+      const phoneKey = String(call.phone || '').replace(/\D/g, '').slice(-10);
+      const lead = leadByPhone.get(phoneKey);
+      return {
+        ...call,
+        student_name: call.student_name || lead?.name || '',
+        course: call.course || lead?.course || courseForAgentName(call.agent_name) || ''
+      };
+    });
 
     return res.status(200).json(calls);
   } catch (err) {
