@@ -4,7 +4,7 @@ const path = require('node:path');
 const { neon } = require('@neondatabase/serverless');
 
 const HEADERS = [
-  'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'duration',
+  'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'student_name', 'course', 'duration',
   'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at', 'ended_at'
 ];
 
@@ -26,6 +26,8 @@ async function ensureDatabaseSchema(sql) {
       agent_id TEXT,
       agent_name TEXT,
       phone TEXT,
+      student_name TEXT,
+      course TEXT,
       duration INTEGER NOT NULL DEFAULT 0,
       summary TEXT,
       success_evaluation TEXT,
@@ -36,6 +38,8 @@ async function ensureDatabaseSchema(sql) {
       ended_at TIMESTAMPTZ
     )
   `;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS student_name TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS course TEXT`;
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS call_records_snapserve_id_idx
     ON call_records (snapserve_call_id)
@@ -54,6 +58,8 @@ function normalizedDatabaseCall(row) {
     agent_id: row.agent_id || '',
     agent_name: row.agent_name || '',
     phone: row.phone || '',
+    student_name: row.student_name || '',
+    course: row.course || '',
     duration: Number(row.duration) || 0,
     summary: row.summary || '',
     success_evaluation: row.success_evaluation || '',
@@ -68,7 +74,7 @@ function normalizedDatabaseCall(row) {
 async function getDatabaseCalls(sql) {
   await ensureDatabaseSchema(sql);
   const rows = await sql`
-    SELECT id, snapserve_call_id, agent_id, agent_name, phone, duration,
+    SELECT id, snapserve_call_id, agent_id, agent_name, phone, student_name, course, duration,
            summary, success_evaluation, recording_url, transcript, status,
            created_at, ended_at
     FROM call_records
@@ -93,6 +99,8 @@ async function upsertDatabaseCall(sql, callData) {
         agent_id = ${merged.agent_id || null},
         agent_name = ${merged.agent_name || null},
         phone = ${merged.phone || null},
+        student_name = ${merged.student_name || null},
+        course = ${merged.course || null},
         duration = ${Number(merged.duration) || 0},
         summary = ${merged.summary || null},
         success_evaluation = ${merged.success_evaluation || null},
@@ -109,11 +117,12 @@ async function upsertDatabaseCall(sql, callData) {
 
   const rows = await sql`
     INSERT INTO call_records (
-      snapserve_call_id, agent_id, agent_name, phone, duration, summary,
+      snapserve_call_id, agent_id, agent_name, phone, student_name, course, duration, summary,
       success_evaluation, recording_url, transcript, status, created_at, ended_at
     ) VALUES (
       ${snapserveId || null}, ${merged.agent_id || null}, ${merged.agent_name || null},
-      ${merged.phone || null}, ${Number(merged.duration) || 0}, ${merged.summary || null},
+      ${merged.phone || null}, ${merged.student_name || null}, ${merged.course || null},
+      ${Number(merged.duration) || 0}, ${merged.summary || null},
       ${merged.success_evaluation || null}, ${merged.recording_url || null},
       ${merged.transcript || null}, ${merged.status || 'unknown'},
       ${merged.created_at || new Date().toISOString()}, ${merged.ended_at || null}
@@ -203,6 +212,8 @@ async function getCalls(callsPath) {
       agent_id: raw.agent_id || '',
       agent_name: raw.agent_name || '',
       phone: raw.phone || '',
+      student_name: raw.student_name || '',
+      course: raw.course || '',
       duration: Number(raw.duration) || 0,
       summary: raw.summary || '',
       success_evaluation: raw.success_evaluation || '',
@@ -272,6 +283,8 @@ async function upsertCall(callsPath, callData) {
     agent_id: '',
     agent_name: '',
     phone: '',
+    student_name: '',
+    course: '',
     duration: 0,
     summary: '',
     success_evaluation: '',
