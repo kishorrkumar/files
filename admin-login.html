@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThinkCreator Admin Login</title>
+  <style>
+    :root { --ink:#171522; --accent:#6f4ff2; --muted:#716c7b; --border:#e4dccf; }
+    * { box-sizing:border-box; }
+    body {
+      min-height:100vh; margin:0; display:grid; place-items:center; padding:20px;
+      font-family:Inter,Arial,sans-serif; color:var(--ink);
+      background:radial-gradient(circle at top right,#ddd4ff 0,transparent 34%),#f6f1e7;
+    }
+    .login-card {
+      width:min(430px,100%); padding:34px; border:1px solid var(--border);
+      border-radius:22px; background:rgba(255,255,255,.94);
+      box-shadow:0 28px 70px -35px rgba(23,21,34,.45);
+    }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin:10px 0 8px; font-size:1.8rem; }
+    p { margin:0 0 24px; color:var(--muted); line-height:1.5; }
+    label { display:block; margin-bottom:7px; font-size:.8rem; font-weight:800; }
+    input {
+      width:100%; min-height:50px; padding:12px 14px; border:1px solid var(--border);
+      border-radius:12px; font:inherit; outline:none;
+    }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(111,79,242,.12); }
+    button {
+      width:100%; min-height:50px; margin-top:16px; border:0; border-radius:12px;
+      background:var(--ink); color:white; font-weight:800; cursor:pointer;
+    }
+    button:disabled { opacity:.65; cursor:wait; }
+    .error { min-height:20px; margin-top:12px; color:#c52828; font-size:.85rem; }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <div class="eyebrow">ThinkCreator Academy</div>
+    <h1>Admin login</h1>
+    <p>Sign in to manage leads, agents, calls and automatic calling.</p>
+    <form id="loginForm">
+      <label for="password">Admin password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+      <button id="loginButton" type="submit">Sign in</button>
+      <div id="error" class="error" role="alert"></div>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('loginForm');
+    const button = document.getElementById('loginButton');
+    const error = document.getElementById('error');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      error.textContent = '';
+      try {
+        const response = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ password: document.getElementById('password').value })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Login failed.');
+        window.location.replace('/admin');
+      } catch (err) {
+        error.textContent = err.message;
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
