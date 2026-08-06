@@ -7,6 +7,7 @@ const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fet
 const { selectAgentForCourse } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
+const { normalizeTranscript, callFromPayload, callsFromResponse } = require('./call-normalization');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
 
 const app = express();
@@ -60,18 +61,6 @@ function safePasswordMatch(received, expected) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
-function normalizeTranscript(value) {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value.map(item => {
-      if (typeof item === 'string') return item;
-      return `${item.role || item.speaker || 'speaker'}: ${item.text || item.content || item.message || ''}`;
-    }).join('\n');
-  }
-  return JSON.stringify(value, null, 2);
-}
-
 const handleSnapserveWebhook = async (req, res) => {
   const webhookSecret = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
   const receivedSecret =
@@ -88,38 +77,10 @@ const handleSnapserveWebhook = async (req, res) => {
   const body = req.body || {};
   console.log('Received Snapserve webhook:', JSON.stringify(body));
 
-  const snapserve_call_id = body.callId || body.id || body.call?.id || body.payload?.callId || '';
-  const agent_id = body.agent_id || body.agentId || body.agent?.id || body.call?.agentId || '';
-  const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
-  const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
-  const duration = Number(body.durationSeconds || body.duration || body.callDuration || body.call?.durationSeconds || body.call?.duration || 0);
-  const summary = body.callSummary || body.call_summary || body.summary || body.call?.summary || body.analysis?.summary || '';
-  const success_evaluation = body.successEvaluation || body.success_evaluation || body.call?.successEvaluation || body.analysis?.successEvaluation || '';
-  const recording_url = body.recordingUrl || body.recording_url || body.call?.recordingUrl || body.payload?.recordingUrl || '';
-  const transcript = normalizeTranscript(
-    body.transcript || body.call_transcript || body.callTranscript ||
-    body.call?.transcript || body.analysis?.transcript || body.messages
-  );
-  const status = normalizeCallStatus(
-    body.status || body.call_status || body.callStatus || body.event || body.type,
-    { duration, summary, transcript, recording_url }
-  );
+  const callData = callFromPayload(body);
 
   try {
-    const result = await upsertCall(CALLS_PATH, {
-      snapserve_call_id,
-      agent_id,
-      agent_name,
-      phone,
-      duration,
-      summary,
-      success_evaluation,
-      recording_url,
-      transcript,
-      status,
-      created_at: body.createdAt || body.created_at || body.call?.createdAt || '',
-      ended_at: body.endedAt || body.ended_at || body.call?.endedAt || ''
-    });
+    const result = await upsertCall(CALLS_PATH, callData);
     console.log('Saved call record to CSV:', result);
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
   } catch (err) {
@@ -318,32 +279,11 @@ app.get('/calls', requireAdmin, async (req, res) => {
         });
 
         if (response.ok) {
-          const snapserveCalls = await response.json();
-          if (Array.isArray(snapserveCalls)) {
-            for (const call of snapserveCalls) {
-              let recordingUrl = call.recordingUrl || '';
-              if (recordingUrl && recordingUrl.startsWith('/')) {
-                recordingUrl = `https://app.snapserve.ai${recordingUrl}`;
-              }
-
-              await upsertCall(CALLS_PATH, {
-                snapserve_call_id: String(call.id || call.callId || ''),
-                agent_id: String(call.agentId || ''),
-                agent_name: call.agentName || '',
-                phone: call.toNumber || call.phone || '',
-                duration: call.durationSeconds || call.duration || 0,
-                summary: call.callSummary || call.summary || '',
-                success_evaluation: call.successEvaluation || '',
-                recording_url: recordingUrl,
-                transcript: normalizeTranscript(call.transcript || call.messages),
-                status: normalizeCallStatus(call.status, call),
-                created_at: call.createdAt || call.startedAt || '',
-                ended_at: call.endedAt || ''
-              });
-            }
-
-            calls = await getCalls(CALLS_PATH);
+          const snapserveCalls = callsFromResponse(await response.json());
+          for (const call of snapserveCalls) {
+            await upsertCall(CALLS_PATH, callFromPayload(call));
           }
+          calls = await getCalls(CALLS_PATH);
         }
       } catch (syncErr) {
         console.error('Failed to sync calls from Snapserve API:', syncErr);
