@@ -25,4 +25,11 @@ async function selectAgentForCourse(course, fetchAgents = fetchSnapserveAgents) 
   return matches[0] || null;
 }
 
-module.exports = { COURSE_AGENT_KEYWORDS, selectAgentForCourse };
+function courseForAgentName(agentName) {
+  const name = String(agentName || '').toLowerCase();
+  return Object.entries(COURSE_AGENT_KEYWORDS).find(([, keywords]) =>
+    keywords.some((keyword) => name.includes(keyword))
+  )?.[0] || '';
+}
+
+module.exports = { COURSE_AGENT_KEYWORDS, selectAgentForCourse, courseForAgentName };
