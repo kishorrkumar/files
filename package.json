@@ -3,11 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test",
+    "mcp:start": "node voiceorch/lib/snapserve-mcp/dist/index.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@neondatabase/serverless": "^0.9.0",
     "dotenv": "^16.4.5",
-    "express": "^4.18.4"
+    "express": "^4.18.4",
+    "zod": "^3.25.76"
   }
 }

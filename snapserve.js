@@ -1,9 +1,19 @@
 require('dotenv').config();
 
 const SNAPSERVE_API_BASE_URL = process.env.SNAPSERVE_API_BASE_URL
+  || process.env.SNAPSERVE_BASE_URL
   || process.env.SNAPSERVE_API_URL
   || process.env.snapserve_api_url
   || 'https://app.snapserve.ai/api';
+
+function mcpEnabled() {
+  return String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true';
+}
+
+async function callMcpTool(name, args) {
+  const { callSnapServeTool } = require('./snapserve-mcp-client');
+  return callSnapServeTool(name, args);
+}
 
 function getSnapserveConfig() {
   return {
@@ -83,6 +93,14 @@ async function initiateOutboundCall({ phone, agentId, apiKey, webhookBaseUrl }) 
     throw new Error('A valid destination phone number is required');
   }
 
+  if (mcpEnabled()) {
+    return callMcpTool('snapserve_start_outbound_call', {
+      phone: normalizePhoneForSnapserve(phone),
+      agentId: resolvedAgentId,
+      ...(resolvedWebhookBaseUrl ? { webhookBaseUrl: resolvedWebhookBaseUrl } : {})
+    });
+  }
+
   const payload = buildOutboundCallPayload(phone, resolvedAgentId, resolvedWebhookBaseUrl);
   console.log('[Snapserve Outbound Payload]', JSON.stringify(payload));
 
@@ -125,6 +143,12 @@ async function fetchSnapserveAgents() {
   if (!apiKey) {
     console.warn('[Snapserve] No API key configured');
     return [];
+  }
+
+  if (mcpEnabled()) {
+    const result = await callMcpTool('snapserve_list_agents');
+    if (Array.isArray(result)) return result;
+    return result.agents || result.data || [];
   }
 
   try {

@@ -7,7 +7,8 @@ const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fet
 const { selectAgentForCourse } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
-const { normalizeTranscript, callFromPayload, callsFromResponse } = require('./call-normalization');
+const { callFromPayload, callsFromResponse } = require('./call-normalization');
+const { callSnapServeTool, closeSnapServeMcp } = require('./snapserve-mcp-client');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
 
 const app = express();
@@ -271,15 +272,24 @@ app.get('/calls', requireAdmin, async (req, res) => {
     const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
     if (apiKey) {
       try {
-        const response = await fetch('https://app.snapserve.ai/api/calls?limit=500', {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const snapserveCalls = callsFromResponse(await response.json());
+        let remotePayload;
+        if (String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true') {
+          remotePayload = await callSnapServeTool('snapserve_list_calls', { limit: 500 });
+        } else {
+          const snapserveBaseUrl = process.env.SNAPSERVE_BASE_URL ||
+            process.env.SNAPSERVE_API_BASE_URL || process.env.SNAPSERVE_API_URL ||
+            'https://app.snapserve.ai/api';
+          const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls?limit=500`, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Accept': 'application/json'
+            }
+          });
+          if (!response.ok) throw new Error(`SnapServe calls API returned ${response.status}`);
+          remotePayload = await response.json();
+        }
+        {
+          const snapserveCalls = callsFromResponse(remotePayload);
           for (const call of snapserveCalls) {
             await upsertCall(CALLS_PATH, callFromPayload(call));
           }
@@ -335,3 +345,11 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
   console.log(`Render backend listening on port ${port}`);
 });
+
+async function shutdown() {
+  await closeSnapServeMcp().catch(() => {});
+  process.exit(0);
+}
+
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
