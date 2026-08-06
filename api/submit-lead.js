@@ -2,32 +2,11 @@ require('dotenv').config();
 
 const path = require('path');
 const { appendLead } = require('../lead-storage');
-const { fetchSnapserveAgents } = require('../snapserve');
+const { selectAgentForCourse } = require('../course-agent');
 
 const RENDER_API_URL = process.env.RENDER_API_URL || '';
 const SNAP_SERVE_INTAKE_URL = process.env.SNAPSERVE_INTAKE_URL || process.env.snapserve_intake_url || '';
 const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, '..', 'data', 'leads.csv');
-
-const COURSE_AGENT_KEYWORDS = {
-  'UI/UX Design Mastery': ['ui', 'ux', 'design'],
-  'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
-  'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
-};
-
-async function selectAgentForCourse(course) {
-  const keywords = COURSE_AGENT_KEYWORDS[course] || [];
-  const agents = await fetchSnapserveAgents();
-  const matches = agents.filter(agent => {
-    const name = String(agent.name || '').toLowerCase();
-    return keywords.some(keyword => name.includes(keyword));
-  });
-  matches.sort((a, b) => {
-    const activeA = String(a.status || '').toLowerCase() === 'active' ? 0 : 1;
-    const activeB = String(b.status || '').toLowerCase() === 'active' ? 0 : 1;
-    return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
-  });
-  return matches[0] || null;
-}
 
 const COURSE_NAMES = {
   'UI/UX Design': 'UI/UX Design Mastery',
