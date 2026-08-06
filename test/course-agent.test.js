@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { selectAgentForCourse } = require('../course-agent');
+const { selectAgentForCourse, courseForAgentName } = require('../course-agent');
 
 test('selects the active agent matching the requested course', async () => {
   const fetchAgents = async () => [
@@ -22,4 +22,9 @@ test('returns null when no agent matches the course', async () => {
   );
 
   assert.equal(agent, null);
+});
+
+test('infers a course from a recognizable agent name', () => {
+  assert.equal(courseForAgentName('Full Stack Counsellor'), 'Full-Stack Web Development');
+  assert.equal(courseForAgentName('General Admissions'), '');
 });
