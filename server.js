@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
 const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
+const { selectAgentForCourse } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
