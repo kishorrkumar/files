@@ -343,6 +343,10 @@
     .mini-window-body { padding: 20px; }
     .summary-meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
     .summary-copy { margin: 0; line-height: 1.65; white-space: pre-wrap; }
+    .recording-player { display: none; }
+    .recording-player.open { display: block; }
+    .recording-player audio { width: 100%; display: block; }
+    .recording-error { min-height: 20px; margin-top: 10px; color: #c52828; font-size: 0.82rem; }
 
     @media (max-width: 900px) {
       .filter-bar { grid-template-columns: 1fr 1fr; }
@@ -542,6 +546,10 @@
       <div class="mini-window-body">
         <div id="summaryModalMeta" class="summary-meta"></div>
         <p id="summaryModalCopy" class="summary-copy"></p>
+        <div id="recordingPlayerWrap" class="recording-player">
+          <audio id="recordingPlayer" controls preload="metadata">Your browser does not support audio playback.</audio>
+          <div id="recordingError" class="recording-error" role="alert"></div>
+        </div>
       </div>
     </article>
   </div>
@@ -984,7 +992,7 @@
           <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
           <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-summary-index="' + callIndex + '">View summary</button>' : '—'}</td>
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
-          <td>${call.recording_url ? '<a href="' + safe(call.recording_url) + '" target="_blank" rel="noopener" class="badge" style="background:#e0f2fe;color:#0369a1;text-decoration:none;">Play</a>' : '—'}</td>
+          <td>${call.recording_url ? '<button class="mini-btn recording-btn" type="button" data-recording-index="' + callIndex + '">Play</button>' : '—'}</td>
           <td>${call.transcript ? '<button class="mini-btn transcript-btn" type="button" data-transcript-index="' + callIndex + '">View transcript</button>' : '—'}</td>
           <td style="font-size:0.85rem;white-space:nowrap;">${safe(formatCallDate(call.call_datetime))}</td>
         </tr>
@@ -1014,6 +1022,7 @@
         typeof call.summary === 'string'
           ? call.summary
           : JSON.stringify(call.summary, null, 2);
+      showTextModalContent();
       document.getElementById('summaryModal').classList.add('open');
       document.body.style.overflow = 'hidden';
       document.getElementById('closeSummaryModal').focus();
@@ -1037,12 +1046,58 @@
         typeof call.transcript === 'string'
           ? call.transcript
           : JSON.stringify(call.transcript, null, 2);
+      showTextModalContent();
       document.getElementById('summaryModal').classList.add('open');
       document.body.style.overflow = 'hidden';
       document.getElementById('closeSummaryModal').focus();
     }
 
+    function showTextModalContent() {
+      const player = document.getElementById('recordingPlayer');
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      document.getElementById('recordingPlayerWrap').classList.remove('open');
+      document.getElementById('recordingError').textContent = '';
+      document.getElementById('summaryModalCopy').style.display = '';
+    }
+
+    function openRecording(recordingIndex) {
+      const call = visibleCalls[Number(recordingIndex)];
+      if (!call?.recording_url) {
+        alert('This call recording is not available. Please refresh the call logs.');
+        return;
+      }
+
+      const player = document.getElementById('recordingPlayer');
+      const error = document.getElementById('recordingError');
+      document.getElementById('summaryModalTitle').textContent =
+        (call.student_name || 'Student') + ' — Call recording';
+      document.getElementById('summaryModalMeta').textContent = [
+        call.course,
+        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
+        call.phone,
+        call.duration ? call.duration + ' seconds' : ''
+      ].filter(Boolean).join(' · ');
+      document.getElementById('summaryModalCopy').style.display = 'none';
+      document.getElementById('recordingPlayerWrap').classList.add('open');
+      error.textContent = '';
+      player.src = call.recording_url;
+      document.getElementById('summaryModal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      player.play().catch(() => {
+        error.textContent = 'Press the play control to start this recording.';
+      });
+    }
+
     function closeSummary() {
+      const player = document.getElementById('recordingPlayer');
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      document.getElementById('recordingPlayerWrap').classList.remove('open');
+      document.getElementById('recordingError').textContent = '';
+      document.getElementById('summaryModalCopy').style.display = '';
       document.getElementById('summaryModal').classList.remove('open');
       document.body.style.overflow = '';
     }
@@ -1101,8 +1156,14 @@
     callsBody.addEventListener('click', (event) => {
       const summaryButton = event.target.closest('.summary-btn');
       const transcriptButton = event.target.closest('.transcript-btn');
+      const recordingButton = event.target.closest('.recording-btn');
       if (summaryButton) openSummary(summaryButton.dataset.summaryIndex);
       if (transcriptButton) openTranscript(transcriptButton.dataset.transcriptIndex);
+      if (recordingButton) openRecording(recordingButton.dataset.recordingIndex);
+    });
+    document.getElementById('recordingPlayer').addEventListener('error', () => {
+      document.getElementById('recordingError').textContent =
+        'This recording could not be played. Refresh the calls and try again.';
     });
     document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
     document.getElementById('summaryModal').addEventListener('click', (event) => {
