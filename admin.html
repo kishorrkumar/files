@@ -442,6 +442,7 @@
             </label>
           </div>
           <button id="refreshBtn" type="button">Refresh</button>
+          <button id="logoutBtn" type="button" style="background:#ede8f5;color:var(--ink);">Logout</button>
         </div>
       </div>
       <div class="filter-bar" style="grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) minmax(180px,1fr) auto;" aria-label="Lead filters">
@@ -739,13 +740,13 @@
       }
     }
 
-    function getAdminKey() {
-      let key = sessionStorage.getItem('adminApiKey') || '';
-      if (!key) {
-        key = prompt('Enter the admin API key to save this change:') || '';
-        if (key) sessionStorage.setItem('adminApiKey', key);
+    async function sessionFetch(url, options = {}) {
+      const response = await fetch(url, options);
+      if (response.status === 401) {
+        window.location.replace('/admin/login');
+        throw new Error('Admin session expired.');
       }
-      return key;
+      return response;
     }
 
     async function saveAgentAssignment(select) {
@@ -754,18 +755,12 @@
       if (!agentId) return;
       const previousLead = availableLeads.find(lead => String(lead.id) === String(leadId));
       const previousAgent = previousLead?.agent || '';
-      const key = getAdminKey();
-      if (!key) {
-        select.value = previousAgent;
-        return;
-      }
 
       select.disabled = true;
-      let response;
       try {
-        response = await fetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
+        const response = await sessionFetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId })
         });
         const data = await response.json().catch(() => ({}));
@@ -774,26 +769,19 @@
         const hint = select.parentElement.querySelector('.agent-hint');
         if (hint) hint.textContent = 'Saved agent selected';
       } catch (error) {
-        if (response?.status === 401) sessionStorage.removeItem('adminApiKey');
         select.value = previousAgent;
-        alert(error.message);
+        if (!String(error.message).includes('session expired')) alert(error.message);
       } finally {
         select.disabled = false;
       }
     }
 
     async function updateAutoCall(enabled) {
-      const key = getAdminKey();
-      if (!key) {
-        autoCallToggle.checked = !enabled;
-        return;
-      }
       autoCallToggle.disabled = true;
-      let response;
       try {
-        response = await fetch('/settings/auto-call', {
+        const response = await sessionFetch('/settings/auto-call', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-key': key },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled })
         });
         const data = await response.json().catch(() => ({}));
@@ -801,24 +789,31 @@
         autoCallToggle.checked = data.auto_call_enabled;
         autoCallLabel.textContent = data.auto_call_enabled ? 'Auto call on' : 'Auto call off';
       } catch (error) {
-        if (response?.status === 401) sessionStorage.removeItem('adminApiKey');
         autoCallToggle.checked = !enabled;
-        alert(error.message);
+        if (!String(error.message).includes('session expired')) alert(error.message);
       } finally {
         autoCallToggle.disabled = false;
       }
     }
 
     async function loadAutoCallSetting() {
-      const key = sessionStorage.getItem('adminApiKey');
-      if (!key) return;
       try {
-        const response = await fetch('/settings', { headers: { 'x-admin-key': key } });
-        if (!response.ok) return;
+        const response = await sessionFetch('/settings');
+        if (!response.ok) throw new Error('Could not load auto call setting');
         const data = await response.json();
         autoCallToggle.checked = data.auto_call_enabled === true;
         autoCallLabel.textContent = autoCallToggle.checked ? 'Auto call on' : 'Auto call off';
-      } catch {}
+      } catch (error) {
+        if (!String(error.message).includes('session expired')) autoCallLabel.textContent = 'Auto call unavailable';
+      }
+    }
+
+    async function logoutAdmin() {
+      try {
+        await fetch('/admin/logout', { method: 'POST' });
+      } finally {
+        window.location.replace('/admin/login');
+      }
     }
 
     async function triggerCallForLead(leadId, phone) {
@@ -1104,6 +1099,7 @@
       if (event.target.matches('.agent-select')) saveAgentAssignment(event.target);
     });
     autoCallToggle.addEventListener('change', () => updateAutoCall(autoCallToggle.checked));
+    document.getElementById('logoutBtn').addEventListener('click', logoutAdmin);
     callsBody.addEventListener('click', (event) => {
       const summaryButton = event.target.closest('.summary-btn');
       const transcriptButton = event.target.closest('.transcript-btn');
