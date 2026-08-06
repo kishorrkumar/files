@@ -3,30 +3,12 @@ require('dotenv').config();
 const path = require('path');
 const { neon } = require('@neondatabase/serverless');
 const { upsertCall } = require('../../call-storage');
+const { normalizeCallStatus, normalizeTranscript } = require('../../call-normalization');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const RENDER_API_URL = process.env.RENDER_API_URL;
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, '..', '..', 'data', 'calls.csv');
 const WEBHOOK_SECRET = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
-
-function normalizeCallStatus(status, call = {}) {
-  const normalized = String(status || '').toLowerCase();
-  const hasCompletedData = Number(call.duration || 0) > 0 &&
-    Boolean(call.summary || call.transcript || call.recording_url);
-  return (!normalized || normalized === 'unknown') && hasCompletedData ? 'completed' : (normalized || 'unknown');
-}
-
-function normalizeTranscript(value) {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value.map(item => {
-      if (typeof item === 'string') return item;
-      return `${item.role || item.speaker || 'speaker'}: ${item.text || item.content || item.message || ''}`;
-    }).join('\n');
-  }
-  return JSON.stringify(value, null, 2);
-}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
