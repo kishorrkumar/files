@@ -3,9 +3,9 @@ require('dotenv').config();
 const path = require('path');
 const { neon } = require('@neondatabase/serverless');
 const { upsertCall } = require('../../call-storage');
-const { normalizeCallStatus, normalizeTranscript } = require('../../call-normalization');
+const { callFromPayload } = require('../../call-normalization');
+const { databaseUrl } = require('../../database-config');
 
-const DATABASE_URL = process.env.DATABASE_URL;
 const RENDER_API_URL = process.env.RENDER_API_URL;
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, '..', '..', 'data', 'calls.csv');
 const WEBHOOK_SECRET = process.env.SNAPSERVE_WEBHOOK_SECRET || process.env.snapserve_webhook_secret || '';
@@ -34,48 +34,25 @@ module.exports = async (req, res) => {
   }
 
   const body = req.body || {};
-  const snapserve_call_id = body.callId || body.id || body.call?.id || body.payload?.callId || '';
-  const agent_id = body.agent_id || body.agentId || body.agent?.id || body.call?.agentId || '';
-  const agent_name = body.agent_name || body.agentName || body.agent?.name || body.call?.agentName || '';
-  const phone = body.phone || body.toNumber || body.fromNumber || body.call?.toNumber || body.call?.phone || body.payload?.phone || '';
-  const duration = Number(body.durationSeconds || body.duration || body.callDuration || body.call?.durationSeconds || body.call?.duration || 0);
-  const summary = body.callSummary || body.call_summary || body.summary || body.call?.summary || body.analysis?.summary || '';
-  const success_evaluation = body.successEvaluation || body.success_evaluation || body.call?.successEvaluation || body.analysis?.successEvaluation || '';
-  const recording_url = body.recordingUrl || body.recording_url || body.call?.recordingUrl || body.payload?.recordingUrl || '';
-  const transcript = normalizeTranscript(
-    body.transcript || body.call_transcript || body.callTranscript ||
-    body.call?.transcript || body.analysis?.transcript || body.messages
-  );
-  const status = normalizeCallStatus(
-    body.status || body.call_status || body.callStatus || body.event || body.type,
-    { duration, summary, transcript, recording_url }
-  );
+  const callData = callFromPayload(body);
+  let persisted = false;
+  let forwarded = false;
 
-  // 1. Store locally in CSV
-  try {
-    await upsertCall(CALLS_PATH, {
-      snapserve_call_id,
-      agent_id,
-      agent_name,
-      phone,
-      duration,
-      summary,
-      success_evaluation,
-      recording_url,
-      transcript,
-      status,
-      created_at: body.createdAt || body.created_at || body.call?.createdAt || '',
-      ended_at: body.endedAt || body.ended_at || body.call?.endedAt || ''
-    });
-  } catch (csvErr) {
-    console.error('CSV call append error:', csvErr);
+  // Serverless files disappear after a restart, so only write locally when Neon is configured.
+  if (databaseUrl()) {
+    try {
+      await upsertCall(CALLS_PATH, callData);
+      persisted = true;
+    } catch (storageErr) {
+      console.error('Persistent call storage failed:', storageErr);
+    }
   }
 
   // 2. Forward to Render API if configured
   if (RENDER_API_URL) {
     try {
       const renderWebhookUrl = `${RENDER_API_URL.replace(/\/$/, '')}/webhook/snapserve`;
-      await fetch(renderWebhookUrl, {
+      const response = await fetch(renderWebhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,15 +60,18 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify(body)
       });
+      if (!response.ok) throw new Error(`Render webhook returned ${response.status}`);
+      forwarded = true;
     } catch (renderErr) {
       console.error('Render forwarding failed:', renderErr);
     }
   }
 
   // 3. Store in Neon DB if configured
-  if (DATABASE_URL) {
+  const neonUrl = databaseUrl();
+  if (neonUrl) {
     try {
-      const sql = neon(DATABASE_URL);
+      const sql = neon(neonUrl);
       await sql`
         CREATE TABLE IF NOT EXISTS snapserve_webhooks (
           id SERIAL PRIMARY KEY,
@@ -104,11 +84,15 @@ module.exports = async (req, res) => {
       `;
       await sql`
         INSERT INTO snapserve_webhooks (event_type, call_id, phone, payload)
-        VALUES (${status}, ${snapserve_call_id || null}, ${phone}, ${JSON.stringify(body)})
+        VALUES (${callData.status}, ${callData.snapserve_call_id || null}, ${callData.phone}, ${JSON.stringify(body)})
       `;
     } catch (dbErr) {
       console.error('Neon DB webhook insert failed:', dbErr);
     }
+  }
+
+  if (!persisted && !forwarded) {
+    return res.status(503).json({ error: 'Persistent call storage is not configured or unavailable.' });
   }
 
   return res.status(200).json({ success: true, received: true });
