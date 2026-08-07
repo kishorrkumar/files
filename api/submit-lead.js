@@ -3,6 +3,7 @@ require('dotenv').config();
 const path = require('path');
 const { appendLead } = require('../lead-storage');
 const { selectAgentForCourse } = require('../course-agent');
+const { databaseUrl } = require('../database-config');
 
 const RENDER_API_URL = process.env.RENDER_API_URL || '';
 const SNAP_SERVE_INTAKE_URL = process.env.SNAPSERVE_INTAKE_URL || process.env.snapserve_intake_url || '';
@@ -61,12 +62,15 @@ module.exports = async (req, res) => {
       const backendBody = (() => {
         try { return JSON.parse(bodyText || '{}'); } catch { return {}; }
       })();
-      return res.status(backendRes.status).json({
-        error: backendBody.error || 'The admissions service is temporarily unavailable. Please try again shortly.'
-      });
+      if (!databaseUrl()) {
+        return res.status(backendRes.status).json({
+          error: backendBody.error || 'The admissions service is temporarily unavailable. Please try again shortly.'
+        });
+      }
+      console.warn('Using direct Neon lead storage after Render rejected the request.');
     } catch (error) {
       console.error('Render unavailable:', error.message);
-      if (!process.env.DATABASE_URL) {
+      if (!databaseUrl()) {
         return res.status(503).json({
           error: 'The admissions service is temporarily unavailable. Please try again shortly.'
         });
@@ -74,7 +78,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (!process.env.DATABASE_URL) {
+  if (!databaseUrl()) {
     console.error('Lead submission storage is not configured: set RENDER_API_URL or DATABASE_URL.');
     return res.status(503).json({
       error: 'The admissions service is temporarily unavailable. Please try again shortly.'
@@ -98,7 +102,7 @@ module.exports = async (req, res) => {
       success: true,
       id: saved.id,
       created_at: saved.created_at,
-      storage: process.env.DATABASE_URL ? 'database' : 'fallback'
+      storage: 'database'
     });
   } catch (error) {
     console.error('Direct lead storage failed:', error);
