@@ -18,6 +18,19 @@ const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'c
 
 app.use(express.json());
 
+async function storeOutboundCall(call, lead, agentId, phone) {
+  const normalized = callFromPayload(call || {});
+  return upsertCall(CALLS_PATH, {
+    ...normalized,
+    snapserve_call_id: normalized.snapserve_call_id || String(call?.callId || call?.id || ''),
+    agent_id: normalized.agent_id || String(agentId || ''),
+    phone: normalized.phone || phone || '',
+    student_name: normalized.student_name || lead?.name || '',
+    course: normalized.course || lead?.course || '',
+    created_at: normalized.created_at || new Date().toISOString()
+  });
+}
+
 function sessionSecret() {
   return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '';
 }
@@ -144,6 +157,7 @@ app.post('/submit-lead', async (req, res) => {
           agentId,
           apiKey: process.env.SNAPSERVE_API_KEY
         });
+        await storeOutboundCall(call, { name: name.trim(), course: normalizedCourse }, agentId, phone);
         console.log('Automatic Snapserve call initiated:', call);
       }
     } catch (callErr) {
@@ -247,8 +261,9 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
   }
 
   try {
+    let selectedLead = null;
     if (leadId) {
-      await updateLeadAgent(CSV_PATH, leadId, agentId);
+      selectedLead = await updateLeadAgent(CSV_PATH, leadId, agentId);
     }
 
     const call = await initiateOutboundCall({
@@ -256,6 +271,7 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
       agentId,
       apiKey: process.env.SNAPSERVE_API_KEY
     });
+    await storeOutboundCall(call, selectedLead, agentId, phone);
     console.log(`Admin initiated call for lead #${leadId || 'N/A'} with agent ${agentId}:`, call);
 
     return res.status(200).json({ success: true, call });
@@ -306,15 +322,19 @@ app.get('/calls', requireAdmin, async (req, res) => {
         .filter((lead) => String(lead.phone || '').replace(/\D/g, '').slice(-10))
         .map((lead) => [String(lead.phone).replace(/\D/g, '').slice(-10), lead])
     );
-    calls = calls.map((call) => {
+    calls = await Promise.all(calls.map(async (call) => {
       const phoneKey = String(call.phone || '').replace(/\D/g, '').slice(-10);
       const lead = leadByPhone.get(phoneKey);
-      return {
+      const enriched = {
         ...call,
         student_name: call.student_name || lead?.name || '',
         course: call.course || lead?.course || courseForAgentName(call.agent_name) || ''
       };
-    });
+      if ((!call.student_name && enriched.student_name) || (!call.course && enriched.course)) {
+        return upsertCall(CALLS_PATH, enriched);
+      }
+      return enriched;
+    }));
 
     return res.status(200).json(calls);
   } catch (err) {
