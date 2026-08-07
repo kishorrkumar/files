@@ -186,7 +186,9 @@ app.post('/submit-lead', async (req, res) => {
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
   } catch (err) {
     console.error('submit-lead error:', err);
-    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    return res.status(503).json({
+      error: 'The admissions database is temporarily unavailable. Please try again shortly.'
+    });
   }
 });
 
