@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
 const { neon } = require('@neondatabase/serverless');
+const { databaseUrl } = require('./database-config');
 
 const HEADERS = [
   'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'student_name', 'course', 'duration',
@@ -12,8 +13,9 @@ let sqlClient;
 let databaseSchemaReady = false;
 
 function database() {
-  if (!process.env.DATABASE_URL) return null;
-  if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
+  const url = databaseUrl();
+  if (!url) return null;
+  if (!sqlClient) sqlClient = neon(url);
   return sqlClient;
 }
 
@@ -191,7 +193,8 @@ async function getCalls(callsPath) {
     try {
       return await getDatabaseCalls(sql);
     } catch (error) {
-      console.error('Database call read failed; using CSV fallback:', error.message);
+      console.error('Database call read failed:', error.message);
+      throw error;
     }
   }
   const resolvedPath = resolveCallsPath(callsPath);
@@ -246,7 +249,8 @@ async function upsertCall(callsPath, callData) {
     try {
       return await upsertDatabaseCall(sql, callData);
     } catch (error) {
-      console.error('Database call upsert failed; using CSV fallback:', error.message);
+      console.error('Database call upsert failed:', error.message);
+      throw error;
     }
   }
   const resolvedPath = resolveCallsPath(callsPath);
