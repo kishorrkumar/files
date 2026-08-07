@@ -1,12 +1,14 @@
 const { neon } = require('@neondatabase/serverless');
 const csvStorage = require('./csv-storage');
+const { databaseUrl } = require('./database-config');
 
 let sqlClient;
 let schemaReady = false;
 
 function getDatabase() {
-  if (!process.env.DATABASE_URL) return null;
-  if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
+  const url = databaseUrl();
+  if (!url) return null;
+  if (!sqlClient) sqlClient = neon(url);
   return sqlClient;
 }
 
@@ -47,8 +49,8 @@ async function appendLead(csvPath, lead) {
     `;
     return rows[0];
   } catch (error) {
-    console.error('Database lead insert failed; using CSV fallback:', error.message);
-    return csvStorage.appendLead(csvPath, lead);
+    console.error('Database lead insert failed:', error.message);
+    throw error;
   }
 }
 
@@ -63,8 +65,8 @@ async function getLeads(csvPath) {
       ORDER BY created_at DESC
     `;
   } catch (error) {
-    console.error('Database lead read failed; using CSV fallback:', error.message);
-    return csvStorage.getLeads(csvPath);
+    console.error('Database lead read failed:', error.message);
+    throw error;
   }
 }
 
@@ -81,8 +83,8 @@ async function updateLeadAgent(csvPath, leadId, agentId) {
     `;
     return rows[0] || null;
   } catch (error) {
-    console.error('Database lead update failed; using CSV fallback:', error.message);
-    return csvStorage.updateLeadAgent(csvPath, leadId, agentId);
+    console.error('Database lead update failed:', error.message);
+    throw error;
   }
 }
 
