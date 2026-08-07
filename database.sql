@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS call_records (
   agent_id TEXT,
   agent_name TEXT,
   phone TEXT,
+  student_name TEXT,
+  course TEXT,
   duration INTEGER NOT NULL DEFAULT 0,
   summary TEXT,
   success_evaluation TEXT,
@@ -38,6 +40,9 @@ CREATE TABLE IF NOT EXISTS call_records (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at TIMESTAMPTZ
 );
+
+ALTER TABLE call_records ADD COLUMN IF NOT EXISTS student_name TEXT;
+ALTER TABLE call_records ADD COLUMN IF NOT EXISTS course TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS call_records_snapserve_id_idx
 ON call_records (snapserve_call_id)
