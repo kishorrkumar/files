@@ -24,3 +24,11 @@ test('database URL accepts common Neon and Postgres environment names', () => {
     else process.env[key] = value;
   }
 });
+
+test('database URL removes quotes copied from a Neon connection command', () => {
+  const previous = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "psql 'postgresql://user:pass@example.test/db?sslmode=require'";
+  assert.equal(databaseUrl(), 'postgresql://user:pass@example.test/db?sslmode=require');
+  if (previous === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = previous;
+});
