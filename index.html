@@ -436,7 +436,10 @@
       if (!response.ok) throw new Error(data.error || 'Registration could not be saved. Please try again.');
 
       const refId = 'SS-' + String(data.id || '').padStart(6, '0');
-      document.getElementById('reg-content').style.display = 'none';
+      form.style.display = 'none';
+      const registrationCopy = document.querySelector('.reg-left');
+      if (registrationCopy) registrationCopy.style.display = 'none';
+      document.getElementById('reg-content').style.gridTemplateColumns = '1fr';
       const successBox = document.getElementById('successBox');
       successBox.classList.add('show');
       document.getElementById('refId').textContent = 'Reference: ' + refId;
