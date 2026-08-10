@@ -354,7 +354,7 @@
           <div class="success" id="successBox">
             <div class="checkmark">✓</div>
             <h3>You're on the list.</h3>
-            <p>We've saved your spot for the SnapServe voice agent class. Watch your email and phone for the meeting link.</p>
+            <p id="successMessage">We've saved your spot for the SnapServe voice agent class. Watch your email and phone for the meeting link.</p>
             <div class="ref" id="refId"></div>
           </div>
         </div>
@@ -370,6 +370,8 @@
   </div>
 </footer>
 
+<script src="https://app.snapserve.ai/api/widget/lead-capture.js"
+        data-token="9a9e6bb4-dbe5-40f2-853a-4a92eff1d965"></script>
 <script>
   // pill active state
   document.querySelectorAll('.pill').forEach(pill => {
@@ -435,6 +437,23 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Registration could not be saved. Please try again.');
 
+      let snapserveSubmitted = false;
+      if (interest.value === 'Yes, very interested') {
+        try {
+          if (!window.SnapServe || typeof window.SnapServe.submit !== 'function') {
+            throw new Error('SnapServe lead capture is unavailable');
+          }
+          await window.SnapServe.submit({
+            phone,
+            full_name: name,
+            email
+          });
+          snapserveSubmitted = true;
+        } catch (snapserveError) {
+          console.error('SnapServe lead capture failed:', snapserveError);
+        }
+      }
+
       const refId = 'SS-' + String(data.id || '').padStart(6, '0');
       form.style.display = 'none';
       const registrationCopy = document.querySelector('.reg-left');
@@ -442,6 +461,14 @@
       document.getElementById('reg-content').style.gridTemplateColumns = '1fr';
       const successBox = document.getElementById('successBox');
       successBox.classList.add('show');
+      const successMessage = document.getElementById('successMessage');
+      if (interest.value !== 'Yes, very interested') {
+        successMessage.textContent = 'Your registration is saved. No voice-agent call has been scheduled.';
+      } else if (snapserveSubmitted) {
+        successMessage.textContent = 'Your registration is saved and your details were sent securely to Liza. Watch your phone and email for the next step.';
+      } else {
+        successMessage.textContent = 'Your registration is saved, but we could not schedule the Liza call automatically. Our team can retry it from the admin portal.';
+      }
       document.getElementById('refId').textContent = 'Reference: ' + refId;
     } catch(err) {
       formStatus.textContent = err.message || 'Registration could not be saved. Please try again.';
