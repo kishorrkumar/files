@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const path = require('path');
 const { appendLead } = require('../lead-storage');
-const { selectAgentForCourse } = require('../course-agent');
+const { selectAgentForCourse, isLeadEligibleForCall } = require('../course-agent');
 const { databaseUrl } = require('../database-config');
 
 const RENDER_API_URL = process.env.RENDER_API_URL || '';
@@ -101,8 +101,9 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const courseAgent = payload.agent ? null : await selectAgentForCourse(course);
-    payload.agent = payload.agent || courseAgent?.id || null;
+    const eligibleForCall = isLeadEligibleForCall(course, payload.interest);
+    const courseAgent = payload.agent || !eligibleForCall ? null : await selectAgentForCourse(course);
+    payload.agent = eligibleForCall ? (payload.agent || courseAgent?.id || null) : null;
     const saved = await appendLead(CSV_PATH, payload);
 
     return res.status(200).json({
