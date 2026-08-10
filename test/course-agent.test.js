@@ -34,9 +34,16 @@ test('selects a voice agent for the hackathon campaign', async () => {
     'SnapServe Voice AI Hackathon',
     async () => [
       { id: 'general', name: 'General Admissions', status: 'active' },
-      { id: 'voice', name: 'SnapServe Voice Registration', status: 'active' }
+      { id: 'voice', name: 'Liza - SnapServe Registration', status: 'active' }
     ]
   );
 
   assert.equal(agent.id, 'voice');
+});
+
+test('only explicitly interested Hackathon leads are eligible for calls', () => {
+  const { isLeadEligibleForCall } = require('../course-agent');
+  assert.equal(isLeadEligibleForCall('SnapServe Voice AI Hackathon', 'Yes, very interested'), true);
+  assert.equal(isLeadEligibleForCall('SnapServe Voice AI Hackathon', 'Curious, exploring'), false);
+  assert.equal(isLeadEligibleForCall('SnapServe Voice AI Hackathon', 'Not yet sure'), false);
 });
