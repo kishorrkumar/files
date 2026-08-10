@@ -696,10 +696,14 @@
       }
 
       leadsBody.innerHTML = leads.map((lead) => {
+        const eligibleForCall = lead.course !== 'SnapServe Voice AI Hackathon' ||
+          String(lead.interest || '').trim().toLowerCase() === 'yes, very interested';
         const agents = agentsForCourse(lead.course).slice().sort((a, b) => {
+          const lizaA = String(a.name || '').toLowerCase().includes('liza') ? 0 : 1;
+          const lizaB = String(b.name || '').toLowerCase().includes('liza') ? 0 : 1;
           const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
           const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
-          return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
+          return lizaA - lizaB || activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
         });
         const selectedAgent = availableAgents.find(a => String(a.id) === String(lead.agent));
         const options = agents.map(agent => {
@@ -722,15 +726,15 @@
             <td>${safe(lead.interest || '—')}</td>
             <td>${safe(lead.attendance || '—')}</td>
             <td>
-              <select id="agent-select-${safe(lead.id)}" data-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}">
+              <select id="agent-select-${safe(lead.id)}" data-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}" ${eligibleForCall ? '' : 'disabled'}>
                 <option value="">Choose an agent</option>
                 ${keepSelected}${options}
               </select>
-              <span class="agent-hint">${lead.agent ? 'Saved agent selected' : agents.length + ' available agents'}</span>
+              <span class="agent-hint">${eligibleForCall ? (lead.agent ? 'Liza selected by default' : 'Waiting for Liza agent') : 'Not interested — calling disabled'}</span>
             </td>
             <td>
-              <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}">
-                Call lead
+              <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}" ${eligibleForCall ? '' : 'disabled'}>
+                ${eligibleForCall ? 'Call with Liza' : 'Not interested'}
               </button>
             </td>
             <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
@@ -871,7 +875,7 @@
 
         setTimeout(() => {
           callBtn.disabled = false;
-          callBtn.textContent = 'Call student';
+          callBtn.textContent = 'Call with Liza';
           loadCalls();
         }, 5000);
       } catch (err) {
