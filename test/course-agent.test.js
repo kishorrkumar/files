@@ -28,3 +28,15 @@ test('infers a course from a recognizable agent name', () => {
   assert.equal(courseForAgentName('Full Stack Counsellor'), 'Full-Stack Web Development');
   assert.equal(courseForAgentName('General Admissions'), '');
 });
+
+test('selects a voice agent for the hackathon campaign', async () => {
+  const agent = await selectAgentForCourse(
+    'SnapServe Voice AI Hackathon',
+    async () => [
+      { id: 'general', name: 'General Admissions', status: 'active' },
+      { id: 'voice', name: 'SnapServe Voice Registration', status: 'active' }
+    ]
+  );
+
+  assert.equal(agent.id, 'voice');
+});
