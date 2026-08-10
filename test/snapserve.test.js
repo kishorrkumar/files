@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizePhoneForSnapserve, buildOutboundCallPayload, getLeadWebhookConfig, buildLeadWebhookPayload } = require('../snapserve');
+const {
+  normalizePhoneForSnapserve,
+  buildOutboundCallPayload,
+  getLeadWebhookConfig,
+  buildLeadWebhookPayload,
+  syncLeadToSnapserve
+} = require('../snapserve');
 
 test('normalizes a phone number to E.164 format', () => {
   assert.equal(normalizePhoneForSnapserve('+91 9876543210'), '+919876543210');
@@ -16,8 +22,7 @@ test('builds a payload for the Snapserve outbound call API', () => {
 });
 
 test('resolves the lead webhook URL from the supported environment variable names', () => {
-  delete process.env.WEBHOOK_URL;
-  process.env.Web_book_URL = 'https://example.com/webhook';
+  process.env.SNAPSERVE_LEAD_WEBHOOK_URL = 'https://example.com/webhook';
 
   assert.equal(getLeadWebhookConfig().webhookUrl, 'https://example.com/webhook');
 });
@@ -26,16 +31,32 @@ test('builds a lead payload for the webhook', () => {
   assert.deepEqual(buildLeadWebhookPayload({
     name: 'Jane Doe',
     email: 'jane@example.com',
-    phone: '9876543210',
-    course: 'Design',
-    source: 'landing_page_form'
+    phone: '9876543210'
   }), {
-    name: 'Jane Doe',
-    email: 'jane@example.com',
     phone: '9876543210',
-    course: 'Design',
-    interest: null,
-    attendance: null,
-    source: 'landing_page_form'
+    full_name: 'Jane Doe',
+    email: 'jane@example.com'
+  });
+});
+
+test('syncs the submitted phone, name and email to SnapServe', async () => {
+  let request;
+  const result = await syncLeadToSnapserve(
+    { name: 'Jane Doe', email: 'jane@example.com', phone: '+910000000000' },
+    {
+      webhookUrl: 'https://example.test/lead-webhook',
+      fetchImpl: async (url, options) => {
+        request = { url, options };
+        return { ok: true, status: 200, text: async () => '' };
+      }
+    }
+  );
+
+  assert.equal(result.synced, true);
+  assert.equal(request.url, 'https://example.test/lead-webhook');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    phone: '+910000000000',
+    full_name: 'Jane Doe',
+    email: 'jane@example.com'
   });
 });

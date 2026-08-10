@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
-const { initiateOutboundCall, fetchSnapserveAgents } = require('./snapserve');
+const { initiateOutboundCall, fetchSnapserveAgents, syncLeadToSnapserve } = require('./snapserve');
 const { selectAgentForCourse, courseForAgentName, isLeadEligibleForCall } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
@@ -159,13 +159,24 @@ const handleLeadSubmit = async (req, res) => {
       source: req.body?.source || 'landing_page_form'
     });
 
+    let snapserveLeadSync = { skipped: true };
+    try {
+      snapserveLeadSync = await syncLeadToSnapserve({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim()
+      });
+    } catch (syncError) {
+      console.error('SnapServe lead mail sync failed:', syncError.message);
+    }
+
     try {
       const autoCallEnabled = await getAutoCallEnabled();
       const fallbackAgentId = normalizedCourse === 'SnapServe Voice AI Hackathon'
         ? ''
         : process.env.SNAPSERVE_AGENT_ID || '';
       const agentId = assignedAgentId || fallbackAgentId;
-      if (autoCallEnabled && eligibleForCall && agentId) {
+      if (autoCallEnabled && eligibleForCall && agentId && snapserveLeadSync.synced) {
         const call = await initiateOutboundCall({
           phone,
           agentId,
@@ -178,7 +189,12 @@ const handleLeadSubmit = async (req, res) => {
       console.error('Automatic Snapserve call initiation failed:', callErr);
     }
 
-    return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
+    return res.status(200).json({
+      success: true,
+      id: result.id,
+      created_at: result.created_at,
+      snapserve_synced: snapserveLeadSync.synced === true
+    });
   } catch (err) {
     console.error('submit-lead error:', err);
     return res.status(503).json({
@@ -271,6 +287,10 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
     if (!existingLead) return res.status(404).json({ error: 'Lead not found.' });
     if (!isLeadEligibleForCall(existingLead.course, existingLead.interest)) {
       return res.status(403).json({ error: 'Only interested Hackathon leads can be called.' });
+    }
+    const leadSync = await syncLeadToSnapserve(existingLead);
+    if (existingLead.course === 'SnapServe Voice AI Hackathon' && leadSync.skipped) {
+      return res.status(503).json({ error: 'Configure SNAPSERVE_LEAD_WEBHOOK_URL before calling with Liza.' });
     }
     const selectedLead = await updateLeadAgent(CSV_PATH, leadId, agentId);
 

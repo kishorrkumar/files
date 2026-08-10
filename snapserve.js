@@ -24,20 +24,40 @@ function getSnapserveConfig() {
 
 function getLeadWebhookConfig() {
   return {
-    webhookUrl: process.env.WEBHOOK_URL || process.env.Web_book_URL || process.env.webhook_url || ''
+    webhookUrl: process.env.SNAPSERVE_LEAD_WEBHOOK_URL || process.env.snapserve_lead_webhook_url || ''
   };
 }
 
 function buildLeadWebhookPayload(lead) {
   return {
-    name: lead?.name || '',
-    email: lead?.email || '',
     phone: lead?.phone || '',
-    course: lead?.course || null,
-    interest: lead?.interest || null,
-    attendance: lead?.attendance || lead?.attend || null,
-    source: lead?.source || 'landing_page_form'
+    full_name: lead?.name || lead?.full_name || '',
+    email: lead?.email || ''
   };
+}
+
+async function syncLeadToSnapserve(lead, options = {}) {
+  const webhookUrl = options.webhookUrl || getLeadWebhookConfig().webhookUrl;
+  if (!webhookUrl) return { skipped: true, reason: 'SNAPSERVE_LEAD_WEBHOOK_URL is not configured' };
+
+  const payload = buildLeadWebhookPayload(lead);
+  if (!payload.phone || !payload.email) {
+    throw new Error('Lead phone number and email are required for SnapServe mail sync');
+  }
+
+  const request = options.fetchImpl || fetch;
+  const response = await request(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`SnapServe lead sync failed (${response.status})${detail ? `: ${detail}` : ''}`);
+  }
+
+  return { synced: true };
 }
 
 function normalizePhoneForSnapserve(phone) {
@@ -181,6 +201,7 @@ module.exports = {
   getSnapserveConfig,
   getLeadWebhookConfig,
   buildLeadWebhookPayload,
+  syncLeadToSnapserve,
   normalizePhoneForSnapserve,
   buildOutboundCallPayload,
   initiateOutboundCall,

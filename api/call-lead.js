@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const path = require('path');
-const { initiateOutboundCall } = require('../snapserve');
+const { initiateOutboundCall, syncLeadToSnapserve } = require('../snapserve');
 const { getLeads, updateLeadAgent } = require('../lead-storage');
 const { isLeadEligibleForCall } = require('../course-agent');
 
@@ -47,6 +47,10 @@ module.exports = async (req, res) => {
     if (!lead) return res.status(404).json({ error: 'Lead not found.' });
     if (!isLeadEligibleForCall(lead.course, lead.interest)) {
       return res.status(403).json({ error: 'Only interested Hackathon leads can be called.' });
+    }
+    const leadSync = await syncLeadToSnapserve(lead);
+    if (lead.course === 'SnapServe Voice AI Hackathon' && leadSync.skipped) {
+      return res.status(503).json({ error: 'Configure SNAPSERVE_LEAD_WEBHOOK_URL before calling with Liza.' });
     }
     await updateLeadAgent(CSV_PATH, leadId, agentId);
     const call = await initiateOutboundCall({
