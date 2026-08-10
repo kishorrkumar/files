@@ -28,6 +28,7 @@ Open `http://localhost:3000` for the website and `http://localhost:3000/admin` f
 DATABASE_URL=your Neon pooled connection string
 SNAPSERVE_API_KEY=your SnapServe API key
 SNAPSERVE_BASE_URL=https://app.snapserve.ai/api
+SNAPSERVE_LEAD_WEBHOOK_URL=your SnapServe lead webhook URL
 RENDER_API_URL=https://your-render-service.onrender.com
 WEBHOOK_BASE_URL=https://your-render-service.onrender.com
 SNAPSERVE_WEBHOOK_SECRET=a long random secret
@@ -36,6 +37,8 @@ ADMIN_SESSION_SECRET=a different long random secret
 ```
 
 Set `SNAPSERVE_MCP_ENABLED=true` only when the MCP server exists in the deployed repository. Otherwise leave it `false` and the backend will use the SnapServe REST API.
+
+`SNAPSERVE_LEAD_WEBHOOK_URL` connects the submitted phone number, full name, and email address to the SnapServe lead before Liza calls. Configure Liza's mail option inside SnapServe to send the follow-up email after the conversation.
 
 ## Required Vercel variables
 
