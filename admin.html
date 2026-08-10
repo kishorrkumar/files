@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Panel - Leads</title>
+  <title>SnapServe Voice CRM</title>
   <style>
     :root {
       color-scheme: light;
@@ -436,7 +436,7 @@
 
     <section class="card" style="margin-top: 28px;">
       <div class="header">
-        <h1>Lead Admin Panel - Assign Agent & Call</h1>
+        <h1>Hackathon Lead CRM - Assign Agent & Call</h1>
         <div class="header-actions">
           <div class="auto-call-control">
             <span id="autoCallLabel">Auto call off</span>
@@ -455,8 +455,8 @@
           <input id="leadSearch" class="filter-input" type="search" placeholder="Name, email or phone" />
         </div>
         <div class="filter-field">
-          <label for="leadCourseFilter">Course</label>
-          <select id="leadCourseFilter" class="filter-input"><option value="">All courses</option></select>
+          <label for="leadCourseFilter">Campaign</label>
+          <select id="leadCourseFilter" class="filter-input"><option value="">All campaigns</option></select>
         </div>
         <div class="filter-field">
           <label for="leadAssignmentFilter">Assignment</label>
@@ -477,7 +477,9 @@
               <th>Name</th>
               <th>Email</th>
               <th>Phone</th>
-              <th>Course</th>
+              <th>Campaign</th>
+              <th>Interest</th>
+              <th>Attendance</th>
               <th>Assign Agent</th>
               <th>Action</th>
               <th>Submitted</th>
@@ -582,13 +584,15 @@
     const ACADEMY_COURSES = [
       'UI/UX Design Mastery',
       'Full-Stack Web Development',
-      'Filmmaking & Video Editing'
+      'Filmmaking & Video Editing',
+      'SnapServe Voice AI Hackathon'
     ];
 
     const COURSE_AGENT_KEYWORDS = {
       'UI/UX Design Mastery': ['ui', 'ux', 'design'],
       'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
-      'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
+      'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor'],
+      'SnapServe Voice AI Hackathon': ['snapserve', 'voice', 'hackathon', 'event', 'registration']
     };
 
     let availableAgents = [];
@@ -687,7 +691,7 @@
 
       leadResultCount.textContent = leads.length + ' of ' + availableLeads.length + ' leads shown';
       if (!leads.length) {
-        leadsBody.innerHTML = '<tr><td colspan="8" class="empty">No leads match these filters.</td></tr>';
+        leadsBody.innerHTML = '<tr><td colspan="10" class="empty">No leads match these filters.</td></tr>';
         return;
       }
 
@@ -715,6 +719,8 @@
             <td>${safe(lead.email || '—')}</td>
             <td>${safe(lead.phone || '—')}</td>
             <td>${lead.course ? '<span class="badge">' + safe(lead.course) + '</span>' : '—'}</td>
+            <td>${safe(lead.interest || '—')}</td>
+            <td>${safe(lead.attendance || '—')}</td>
             <td>
               <select id="agent-select-${safe(lead.id)}" data-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}">
                 <option value="">Choose an agent</option>
@@ -724,7 +730,7 @@
             </td>
             <td>
               <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}">
-                Call student
+                Call lead
               </button>
             </td>
             <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
@@ -734,17 +740,17 @@
     }
 
     async function loadLeads() {
-      leadsBody.innerHTML = '<tr><td colspan="8" class="empty">Loading leads…</td></tr>';
+      leadsBody.innerHTML = '<tr><td colspan="10" class="empty">Loading leads…</td></tr>';
       try {
         const response = await fetch('/leads');
         if (!response.ok) throw new Error('Unable to load leads');
         const leads = await response.json();
         availableLeads = Array.isArray(leads) ? leads : [];
-        populateFilter(leadCourseFilter, uniqueValues(availableLeads, 'course'), 'All courses');
+        populateFilter(leadCourseFilter, uniqueValues(availableLeads, 'course'), 'All campaigns');
         renderLeads();
         if (availableCalls.length) renderCalls();
       } catch (error) {
-        leadsBody.innerHTML = '<tr><td colspan="8" class="empty">' + safe(error.message) + '</td></tr>';
+        leadsBody.innerHTML = '<tr><td colspan="10" class="empty">' + safe(error.message) + '</td></tr>';
       }
     }
 
