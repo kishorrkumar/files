@@ -1,10 +1,19 @@
 const { fetchSnapserveAgents } = require('./snapserve');
 
 const COURSE_AGENT_KEYWORDS = {
+  'SnapServe Voice AI Hackathon': ['liza'],
   'UI/UX Design Mastery': ['ui', 'ux', 'design'],
   'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
   'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
 };
+
+const HACKATHON_CAMPAIGN = 'SnapServe Voice AI Hackathon';
+const HACKATHON_INTERESTED_VALUE = 'Yes, very interested';
+
+function isLeadEligibleForCall(course, interest) {
+  return course !== HACKATHON_CAMPAIGN ||
+    String(interest || '').trim().toLowerCase() === HACKATHON_INTERESTED_VALUE.toLowerCase();
+}
 
 async function selectAgentForCourse(course, fetchAgents = fetchSnapserveAgents) {
   const keywords = COURSE_AGENT_KEYWORDS[course] || [];
@@ -32,4 +41,11 @@ function courseForAgentName(agentName) {
   )?.[0] || '';
 }
 
-module.exports = { COURSE_AGENT_KEYWORDS, selectAgentForCourse, courseForAgentName };
+module.exports = {
+  COURSE_AGENT_KEYWORDS,
+  HACKATHON_CAMPAIGN,
+  HACKATHON_INTERESTED_VALUE,
+  isLeadEligibleForCall,
+  selectAgentForCourse,
+  courseForAgentName
+};

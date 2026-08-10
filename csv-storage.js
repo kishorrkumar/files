@@ -2,6 +2,10 @@ const fs = require('node:fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
 
+const HEADERS = [
+  'id', 'name', 'email', 'phone', 'course', 'agent', 'interest', 'attendance', 'source', 'status', 'created_at'
+];
+
 function resolveCsvPath(csvPath) {
   if (!csvPath) {
     return path.join(__dirname, 'data', 'leads.csv');
@@ -54,7 +58,7 @@ async function ensureCsvFile(csvPath) {
   await fsPromises.mkdir(directory, { recursive: true });
 
   if (!fs.existsSync(csvPath)) {
-    await fsPromises.writeFile(csvPath, 'id,name,email,phone,course,agent,created_at\n', 'utf8');
+    await fsPromises.writeFile(csvPath, HEADERS.join(',') + '\n', 'utf8');
   }
 }
 
@@ -72,6 +76,10 @@ async function appendLead(csvPath, lead) {
     lead.phone || '',
     lead.course || '',
     lead.agent || '',
+    lead.interest || '',
+    lead.attendance || lead.attend || '',
+    lead.source || '',
+    lead.status || 'new',
     createdAt
   ]
     .map(escapeCsvValue)
@@ -86,6 +94,10 @@ async function appendLead(csvPath, lead) {
     phone: lead.phone || '',
     course: lead.course || '',
     agent: lead.agent || '',
+    interest: lead.interest || '',
+    attendance: lead.attendance || lead.attend || '',
+    source: lead.source || '',
+    status: lead.status || 'new',
     created_at: createdAt
   };
 }
@@ -107,16 +119,22 @@ async function getLeads(csvPath) {
     return [];
   }
 
+  const headers = parseCsvLine(lines[0]);
   return lines.slice(1).map((line) => {
-    const [id, name, email, phone, course, agent, createdAt] = parseCsvLine(line);
+    const values = parseCsvLine(line);
+    const lead = Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
     return {
-      id: Number(id),
-      name,
-      email,
-      phone,
-      course,
-      agent,
-      created_at: createdAt
+      id: Number(lead.id),
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      course: lead.course,
+      agent: lead.agent,
+      interest: lead.interest || '',
+      attendance: lead.attendance || lead.attend || '',
+      source: lead.source || '',
+      status: lead.status || 'new',
+      created_at: lead.created_at
     };
   });
 }
@@ -135,7 +153,7 @@ async function updateLeadAgent(csvPath, leadId, agentId) {
 
   targetLead.agent = agentId;
 
-  const header = 'id,name,email,phone,course,agent,created_at\n';
+  const header = HEADERS.join(',') + '\n';
   const rows = leads.map((l) =>
     [
       l.id,
@@ -144,6 +162,10 @@ async function updateLeadAgent(csvPath, leadId, agentId) {
       l.phone || '',
       l.course || '',
       l.agent || '',
+      l.interest || '',
+      l.attendance || '',
+      l.source || '',
+      l.status || 'new',
       l.created_at || ''
     ]
       .map(escapeCsvValue)

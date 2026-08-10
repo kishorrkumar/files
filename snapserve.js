@@ -34,6 +34,8 @@ function buildLeadWebhookPayload(lead) {
     email: lead?.email || '',
     phone: lead?.phone || '',
     course: lead?.course || null,
+    interest: lead?.interest || null,
+    attendance: lead?.attendance || lead?.attend || null,
     source: lead?.source || 'landing_page_form'
   };
 }

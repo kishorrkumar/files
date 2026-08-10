@@ -2,7 +2,8 @@ require('dotenv').config();
 
 const path = require('path');
 const { initiateOutboundCall } = require('../snapserve');
-const { updateLeadAgent } = require('../csv-storage');
+const { getLeads, updateLeadAgent } = require('../lead-storage');
+const { isLeadEligibleForCall } = require('../course-agent');
 
 const RENDER_API_URL = process.env.RENDER_API_URL;
 const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, '..', 'data', 'leads.csv');
@@ -22,8 +23,8 @@ module.exports = async (req, res) => {
 
   const { leadId, agentId, phone } = req.body || {};
 
-  if (!phone || !agentId) {
-    return res.status(400).json({ error: 'Phone number and agent ID are required.' });
+  if (!leadId || !phone || !agentId) {
+    return res.status(400).json({ error: 'Lead, phone number and agent ID are required.' });
   }
 
   if (RENDER_API_URL) {
@@ -41,9 +42,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    if (leadId) {
-      await updateLeadAgent(CSV_PATH, leadId, agentId);
+    const leads = await getLeads(CSV_PATH);
+    const lead = leads.find((item) => String(item.id) === String(leadId));
+    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+    if (!isLeadEligibleForCall(lead.course, lead.interest)) {
+      return res.status(403).json({ error: 'Only interested Hackathon leads can be called.' });
     }
+    await updateLeadAgent(CSV_PATH, leadId, agentId);
     const call = await initiateOutboundCall({
       phone,
       agentId,

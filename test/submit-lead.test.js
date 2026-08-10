@@ -21,7 +21,7 @@ test('rejects an invalid email as a field validation error', async () => {
     body: {
       name: 'Bhaya',
       email: 'not-an-email',
-      phone: '+918926109358',
+      phone: '+910000000000',
       course: 'Full-Stack Web Development'
     }
   };
@@ -42,8 +42,8 @@ test('returns a clear service error when persistent storage is not configured', 
       method: 'POST',
       body: {
         name: 'Bhaya',
-        email: 'kishorekumarr307@gmail.com',
-        phone: '+918926109358',
+        email: 'lead@example.test',
+        phone: '+910000000000',
         course: 'Full-Stack Web Development'
       }
     };
@@ -60,4 +60,22 @@ test('returns a clear service error when persistent storage is not configured', 
     if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = previousDatabaseUrl;
   }
+});
+
+test('requires Hackathon interest and attendance selections', async () => {
+  const req = {
+    method: 'POST',
+    body: {
+      name: 'Priya Sharma',
+      email: 'priya@example.com',
+      phone: '+910000000000',
+      course: 'SnapServe Voice AI Hackathon'
+    }
+  };
+  const res = responseRecorder();
+
+  await submitLead(req, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'Please select your level of interest.');
 });

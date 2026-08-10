@@ -37,6 +37,10 @@ test('appends leads to CSV and reads them back in order', async () => {
       phone: '9876543210',
       course: 'Design',
       agent: 'agent-123',
+      interest: '',
+      attendance: '',
+      source: '',
+      status: 'new',
       created_at: leads[0].created_at
     },
     {
@@ -46,6 +50,10 @@ test('appends leads to CSV and reads them back in order', async () => {
       phone: '1234567890',
       course: 'Development',
       agent: 'agent-456',
+      interest: '',
+      attendance: '',
+      source: '',
+      status: 'new',
       created_at: leads[1].created_at
     }
   ]);

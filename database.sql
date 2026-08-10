@@ -3,16 +3,20 @@ CREATE TABLE IF NOT EXISTS leads (
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
-  course TEXT NOT NULL CHECK (
-    course IN (
-      'UI/UX Design Mastery',
-      'Full-Stack Web Development',
-      'Filmmaking & Video Editing'
-    )
-  ),
+  course TEXT NOT NULL,
   agent TEXT,
+  interest TEXT,
+  attendance TEXT,
+  source TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_course_check;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS interest TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS attendance TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'new';
 
 CREATE INDEX IF NOT EXISTS leads_phone_idx ON leads (phone);
 CREATE INDEX IF NOT EXISTS leads_course_idx ON leads (course);

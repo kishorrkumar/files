@@ -2,11 +2,10 @@ require('dotenv').config();
 
 const path = require('path');
 const { appendLead } = require('../lead-storage');
-const { selectAgentForCourse } = require('../course-agent');
+const { selectAgentForCourse, isLeadEligibleForCall } = require('../course-agent');
 const { databaseUrl } = require('../database-config');
 
 const RENDER_API_URL = process.env.RENDER_API_URL || '';
-const SNAP_SERVE_INTAKE_URL = process.env.SNAPSERVE_INTAKE_URL || process.env.snapserve_intake_url || '';
 const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, '..', 'data', 'leads.csv');
 
 const COURSE_NAMES = {
@@ -14,7 +13,8 @@ const COURSE_NAMES = {
   'UI/UX Design Mastery': 'UI/UX Design Mastery',
   'Full-Stack Development': 'Full-Stack Web Development',
   'Full-Stack Web Development': 'Full-Stack Web Development',
-  'Filmmaking & Video Editing': 'Filmmaking & Video Editing'
+  'Filmmaking & Video Editing': 'Filmmaking & Video Editing',
+  'SnapServe Voice AI Hackathon': 'SnapServe Voice AI Hackathon'
 };
 
 module.exports = async (req, res) => {
@@ -38,9 +38,24 @@ module.exports = async (req, res) => {
   if (phone.replace(/\D/g, '').length < 8) {
     return res.status(400).json({ error: 'A valid phone number is required.' });
   }
-  if (!course) return res.status(400).json({ error: 'Please select a valid academy course.' });
+  if (!course) return res.status(400).json({ error: 'Please select a valid campaign.' });
+  if (course === 'SnapServe Voice AI Hackathon') {
+    if (!incoming.interest) return res.status(400).json({ error: 'Please select your level of interest.' });
+    if (!incoming.attendance && !incoming.attend) {
+      return res.status(400).json({ error: 'Please select whether you can attend.' });
+    }
+  }
 
-  const payload = { ...incoming, name, email, phone, course };
+  const payload = {
+    ...incoming,
+    name,
+    email,
+    phone,
+    course,
+    interest: String(incoming.interest || '').trim() || null,
+    attendance: String(incoming.attendance || incoming.attend || '').trim() || null,
+    source: String(incoming.source || 'landing_page_form').trim()
+  };
 
   if (RENDER_API_URL) {
     try {
@@ -86,17 +101,10 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const courseAgent = payload.agent ? null : await selectAgentForCourse(course);
-    payload.agent = payload.agent || courseAgent?.id || null;
+    const eligibleForCall = isLeadEligibleForCall(course, payload.interest);
+    const courseAgent = payload.agent || !eligibleForCall ? null : await selectAgentForCourse(course);
+    payload.agent = eligibleForCall ? (payload.agent || courseAgent?.id || null) : null;
     const saved = await appendLead(CSV_PATH, payload);
-
-    if (phone && SNAP_SERVE_INTAKE_URL) {
-      fetch(SNAP_SERVE_INTAKE_URL, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(error => console.error('Snapserve intake forwarding failed:', error.message));
-    }
 
     return res.status(200).json({
       success: true,
