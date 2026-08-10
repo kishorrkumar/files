@@ -8,6 +8,7 @@ A Hackathon registration website plus a password-protected CRM for managing lead
 - `/api/submit-lead` — Vercel-compatible lead submission endpoint
 - `/admin/login` — protected CRM login
 - `/admin` — leads, agent assignment, manual calls, auto-call setting, recordings, transcripts, and call metrics
+- interested Hackathon leads default to the active SnapServe agent whose name contains `Liza`; other Hackathon leads cannot be assigned or called
 - Neon PostgreSQL persistence for leads, settings, and call records
 - SnapServe REST API or MCP integration
 
