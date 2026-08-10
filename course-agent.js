@@ -1,6 +1,7 @@
 const { fetchSnapserveAgents } = require('./snapserve');
 
 const COURSE_AGENT_KEYWORDS = {
+  'SnapServe Voice AI Hackathon': ['snapserve', 'voice', 'hackathon', 'event', 'registration'],
   'UI/UX Design Mastery': ['ui', 'ux', 'design'],
   'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
   'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor']
