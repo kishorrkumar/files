@@ -490,6 +490,55 @@
 
     <section class="card" style="margin-top: 28px;">
       <div class="header">
+        <div>
+          <h1>SnapServe Meeting Leads - Assign Agent &amp; Call</h1>
+          <div class="agent-hint">Registrations from the separate SnapServe voice AI meeting form</div>
+        </div>
+        <button id="refreshMeetingLeadsBtn" type="button">Refresh Meeting Leads</button>
+      </div>
+      <div class="filter-bar" aria-label="Meeting lead filters">
+        <div class="filter-field">
+          <label for="meetingLeadSearch">Search meeting lead</label>
+          <input id="meetingLeadSearch" class="filter-input" type="search" placeholder="Name, phone, email or reference" />
+        </div>
+        <div class="filter-field">
+          <label for="meetingInterestFilter">Interest</label>
+          <select id="meetingInterestFilter" class="filter-input"><option value="">All interest levels</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="meetingAttendFilter">Attendance</label>
+          <select id="meetingAttendFilter" class="filter-input"><option value="">All attendance replies</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="meetingCallStatusFilter">Call status</label>
+          <select id="meetingCallStatusFilter" class="filter-input"><option value="">All call statuses</option></select>
+        </div>
+        <button id="clearMeetingLeadFilters" class="clear-btn" type="button">Clear filters</button>
+      </div>
+      <div id="meetingLeadResultCount" class="result-count">Loading meeting leads…</div>
+      <div class="table-wrap">
+        <table id="meetingLeadsTable">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Name</th>
+              <th>Contact</th>
+              <th>Interest</th>
+              <th>Attendance</th>
+              <th>Assign Agent</th>
+              <th>Call Status</th>
+              <th>Attempts</th>
+              <th>Action</th>
+              <th>Submitted</th>
+            </tr>
+          </thead>
+          <tbody id="meetingLeadsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top: 28px;">
+      <div class="header">
         <h1>Snapserve Call Summaries & Details</h1>
         <button id="refreshCallsBtn" type="button">Refresh Calls</button>
       </div>
@@ -578,6 +627,13 @@
     const leadResultCount = document.getElementById('leadResultCount');
     const autoCallToggle = document.getElementById('autoCallToggle');
     const autoCallLabel = document.getElementById('autoCallLabel');
+    const meetingLeadsBody = document.getElementById('meetingLeadsBody');
+    const refreshMeetingLeadsBtn = document.getElementById('refreshMeetingLeadsBtn');
+    const meetingLeadSearch = document.getElementById('meetingLeadSearch');
+    const meetingInterestFilter = document.getElementById('meetingInterestFilter');
+    const meetingAttendFilter = document.getElementById('meetingAttendFilter');
+    const meetingCallStatusFilter = document.getElementById('meetingCallStatusFilter');
+    const meetingLeadResultCount = document.getElementById('meetingLeadResultCount');
 
     const ACADEMY_COURSES = [
       'UI/UX Design Mastery',
@@ -594,6 +650,7 @@
     let availableAgents = [];
     let availableLeads = [];
     let availableCalls = [];
+    let availableMeetingLeads = [];
     let visibleCalls = [];
 
     const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -650,6 +707,7 @@
         `).join('');
       }
       renderLeads();
+      renderMeetingLeads();
     }
 
     async function loadAgents() {
@@ -745,6 +803,132 @@
         if (availableCalls.length) renderCalls();
       } catch (error) {
         leadsBody.innerHTML = '<tr><td colspan="8" class="empty">' + safe(error.message) + '</td></tr>';
+      }
+    }
+
+    function meetingAgentOptions(lead) {
+      const agents = availableAgents.slice().sort((a, b) => {
+        const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
+        const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
+        return activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
+      });
+      return agents.map(agent => {
+        const selected = String(lead.agent) === String(agent.id) ? 'selected' : '';
+        const optionLabel = [agent.name || 'Agent ' + agent.id, agent.language, agent.status]
+          .filter(Boolean).join(' · ');
+        return '<option value="' + safe(agent.id) + '" ' + selected + '>' + safe(optionLabel) + '</option>';
+      }).join('');
+    }
+
+    function renderMeetingLeads() {
+      const query = meetingLeadSearch.value.trim().toLowerCase();
+      const leads = availableMeetingLeads.filter(lead => {
+        const haystack = [lead.ref_id, lead.name, lead.phone, lead.email].join(' ').toLowerCase();
+        return (!query || haystack.includes(query)) &&
+          (!meetingInterestFilter.value || lead.interest === meetingInterestFilter.value) &&
+          (!meetingAttendFilter.value || lead.attend === meetingAttendFilter.value) &&
+          (!meetingCallStatusFilter.value || lead.call_status === meetingCallStatusFilter.value);
+      });
+
+      meetingLeadResultCount.textContent = leads.length + ' of ' + availableMeetingLeads.length + ' meeting leads shown';
+      if (!leads.length) {
+        meetingLeadsBody.innerHTML = '<tr><td colspan="10" class="empty">No SnapServe meeting leads match these filters.</td></tr>';
+        return;
+      }
+
+      meetingLeadsBody.innerHTML = leads.map(lead => `
+        <tr>
+          <td><strong>${safe(lead.ref_id || '—')}</strong></td>
+          <td>${safe(lead.name || '—')}</td>
+          <td>${safe(lead.phone || '—')}<span class="agent-hint">${safe(lead.email || '—')}</span></td>
+          <td>${safe(lead.interest || '—')}</td>
+          <td>${safe(lead.attend || '—')}</td>
+          <td>
+            <select id="meeting-agent-${safe(lead.id)}" data-meeting-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose meeting agent for ${safe(lead.name || 'lead')}">
+              <option value="">Choose an agent</option>
+              ${meetingAgentOptions(lead)}
+            </select>
+            <span class="agent-hint">${lead.agent ? 'Saved meeting agent' : availableAgents.length + ' available agents'}</span>
+          </td>
+          <td><span class="badge">${safe(String(lead.call_status || 'not_called').replaceAll('_', ' '))}</span>${lead.last_called_at ? '<span class="agent-hint">' + safe(new Date(lead.last_called_at).toLocaleString()) + '</span>' : ''}</td>
+          <td>${safe(lead.call_attempts || 0)}</td>
+          <td><button id="meeting-call-${safe(lead.id)}" class="call-btn meeting-call-btn" data-meeting-lead-id="${safe(lead.id)}" type="button">Call lead</button></td>
+          <td>${lead.created_at ? safe(new Date(lead.created_at).toLocaleString()) : '—'}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadMeetingLeads() {
+      meetingLeadsBody.innerHTML = '<tr><td colspan="10" class="empty">Loading SnapServe meeting leads…</td></tr>';
+      try {
+        const response = await sessionFetch('/meeting-leads');
+        const data = await response.json().catch(() => ([]));
+        if (!response.ok) throw new Error(data.error || 'Unable to load meeting leads');
+        availableMeetingLeads = Array.isArray(data) ? data : [];
+        populateFilter(meetingInterestFilter, uniqueValues(availableMeetingLeads, 'interest'), 'All interest levels');
+        populateFilter(meetingAttendFilter, uniqueValues(availableMeetingLeads, 'attend'), 'All attendance replies');
+        populateFilter(meetingCallStatusFilter, uniqueValues(availableMeetingLeads, 'call_status'), 'All call statuses');
+        renderMeetingLeads();
+        if (availableCalls.length) renderCalls();
+      } catch (error) {
+        meetingLeadsBody.innerHTML = '<tr><td colspan="10" class="empty">' + safe(error.message) + '</td></tr>';
+      }
+    }
+
+    async function saveMeetingAgent(select) {
+      const leadId = select.dataset.meetingLeadId;
+      const agentId = select.value;
+      if (!agentId) return;
+      const lead = availableMeetingLeads.find(item => String(item.id) === String(leadId));
+      const previousAgent = lead?.agent || '';
+      select.disabled = true;
+      try {
+        const response = await sessionFetch('/meeting-leads/' + encodeURIComponent(leadId) + '/agent', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not save meeting agent');
+        if (lead) lead.agent = agentId;
+        const hint = select.parentElement.querySelector('.agent-hint');
+        if (hint) hint.textContent = 'Saved meeting agent';
+      } catch (error) {
+        select.value = previousAgent;
+        if (!String(error.message).includes('session expired')) alert(error.message);
+      } finally {
+        select.disabled = false;
+      }
+    }
+
+    async function triggerMeetingLeadCall(leadId) {
+      const select = document.getElementById('meeting-agent-' + leadId);
+      const button = document.getElementById('meeting-call-' + leadId);
+      const agentId = select?.value || '';
+      if (!agentId) {
+        alert('Please select a SnapServe agent before calling this meeting lead.');
+        return;
+      }
+      button.disabled = true;
+      button.textContent = 'Calling…';
+      try {
+        const response = await sessionFetch('/call-meeting-lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ leadId, agentId })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not start the meeting call');
+        button.textContent = data.call?.queued ? 'Call queued' : 'Call started';
+        await loadMeetingLeads();
+        setTimeout(loadCalls, 3000);
+      } catch (error) {
+        if (!String(error.message).includes('session expired')) alert('Error initiating meeting call: ' + error.message);
+      } finally {
+        setTimeout(() => {
+          button.disabled = false;
+          button.textContent = 'Call lead';
+        }, 2500);
       }
     }
 
@@ -882,13 +1066,16 @@
         const lead = availableLeads.find(item =>
           normalizedPhone(item.phone) && normalizedPhone(item.phone) === normalizedPhone(call.phone)
         );
+        const meetingLead = availableMeetingLeads.find(item =>
+          normalizedPhone(item.phone) && normalizedPhone(item.phone) === normalizedPhone(call.phone)
+        );
         const rawStatus = String(call.status || '').toLowerCase();
         const hasCompletedData = Number(call.duration || 0) > 0 &&
           Boolean(call.summary || call.transcript || call.recording_url);
         return {
           ...call,
-          student_name: call.student_name || call.student || lead?.name || '',
-          course: call.course || lead?.course || '',
+          student_name: call.student_name || call.student || lead?.name || meetingLead?.name || '',
+          course: call.course || lead?.course || (meetingLead ? 'SnapServe Voice AI Meeting' : ''),
           filter_agent: call.agent_name || String(call.agent_id || ''),
           status: (!rawStatus || rawStatus === 'unknown') && hasCompletedData
             ? 'completed'
@@ -957,7 +1144,7 @@
       const enriched = deduplicateCalls(enrichCalls(availableCalls));
       const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
       populateFilter(callAgentFilter, relatedAgentNames, 'All related agents');
-      populateFilter(callCourseFilter, ACADEMY_COURSES, 'All three courses');
+      populateFilter(callCourseFilter, uniqueValues(enriched, 'course'), 'All call categories');
       populateFilter(callStatusFilter, uniqueValues(enriched, 'status'), 'All statuses');
 
       const query = callSearch.value.trim().toLowerCase();
@@ -1121,6 +1308,9 @@
     [leadSearch, leadCourseFilter, leadAssignmentFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderLeads);
     });
+    [meetingLeadSearch, meetingInterestFilter, meetingAttendFilter, meetingCallStatusFilter].forEach(control => {
+      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderMeetingLeads);
+    });
     [callSearch, callAgentFilter, callCourseFilter, callStatusFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderCalls);
     });
@@ -1144,12 +1334,26 @@
       callStatusFilter.value = '';
       renderCalls();
     });
+    document.getElementById('clearMeetingLeadFilters').addEventListener('click', () => {
+      meetingLeadSearch.value = '';
+      meetingInterestFilter.value = '';
+      meetingAttendFilter.value = '';
+      meetingCallStatusFilter.value = '';
+      renderMeetingLeads();
+    });
     leadsBody.addEventListener('click', (event) => {
       const button = event.target.closest('.call-btn');
       if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
     });
     leadsBody.addEventListener('change', (event) => {
       if (event.target.matches('.agent-select')) saveAgentAssignment(event.target);
+    });
+    meetingLeadsBody.addEventListener('click', (event) => {
+      const button = event.target.closest('.meeting-call-btn');
+      if (button) triggerMeetingLeadCall(button.dataset.meetingLeadId);
+    });
+    meetingLeadsBody.addEventListener('change', (event) => {
+      if (event.target.matches('.agent-select')) saveMeetingAgent(event.target);
     });
     autoCallToggle.addEventListener('change', () => updateAutoCall(autoCallToggle.checked));
     document.getElementById('logoutBtn').addEventListener('click', logoutAdmin);
@@ -1176,9 +1380,11 @@
     refreshAgentsBtn.addEventListener('click', loadAgents);
     refreshBtn.addEventListener('click', loadLeads);
     refreshCallsBtn.addEventListener('click', loadCalls);
+    refreshMeetingLeadsBtn.addEventListener('click', loadMeetingLeads);
 
     loadAutoCallSetting();
     loadAgents();
+    loadMeetingLeads();
     loadCalls();
   </script>
 </body>

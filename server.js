@@ -10,6 +10,13 @@ const { upsertCall, getCalls } = require('./call-storage');
 const { callFromPayload, callsFromResponse } = require('./call-normalization');
 const { callSnapServeTool, closeSnapServeMcp } = require('./snapserve-mcp-client');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
+const {
+  getMeetingLeads,
+  getMeetingLead,
+  updateMeetingLeadAgent,
+  recordMeetingLeadCall,
+  updateMeetingLeadFromWebhook
+} = require('./meeting-lead-storage');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -95,6 +102,11 @@ const handleSnapserveWebhook = async (req, res) => {
 
   try {
     const result = await upsertCall(CALLS_PATH, callData);
+    await updateMeetingLeadFromWebhook(
+      callData.phone,
+      callData.status,
+      callData.snapserve_call_id || callData.call_id
+    ).catch(error => console.error('Meeting lead webhook update failed:', error.message));
     console.log('Saved call record to CSV:', result);
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
   } catch (err) {
@@ -280,6 +292,68 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Admin call initiation failed:', err);
     return res.status(500).json({ error: err.message || 'Could not initiate call' });
+  }
+});
+
+app.get('/meeting-leads', requireAdmin, async (req, res) => {
+  try {
+    return res.status(200).json(await getMeetingLeads());
+  } catch (error) {
+    console.error('get-meeting-leads error:', error);
+    return res.status(500).json({ error: 'Could not read SnapServe meeting leads.' });
+  }
+});
+
+app.patch('/meeting-leads/:id/agent', requireAdmin, async (req, res) => {
+  const agentId = String(req.body?.agentId || '').trim();
+  if (!agentId) return res.status(400).json({ error: 'Agent ID is required.' });
+  try {
+    const lead = await updateMeetingLeadAgent(req.params.id, agentId);
+    if (!lead) return res.status(404).json({ error: 'Meeting lead not found.' });
+    return res.status(200).json({ success: true, lead });
+  } catch (error) {
+    console.error('update-meeting-lead-agent error:', error);
+    return res.status(500).json({ error: 'Could not save the selected meeting agent.' });
+  }
+});
+
+app.post('/call-meeting-lead', requireAdmin, async (req, res) => {
+  const leadId = String(req.body?.leadId || '').trim();
+  const agentId = String(req.body?.agentId || '').trim();
+  if (!leadId || !agentId) {
+    return res.status(400).json({ error: 'Meeting lead and agent ID are required.' });
+  }
+
+  let lead;
+  try {
+    lead = await getMeetingLead(leadId);
+    if (!lead) return res.status(404).json({ error: 'Meeting lead not found.' });
+
+    const call = await initiateOutboundCall({
+      phone: lead.phone,
+      agentId,
+      apiKey: process.env.SNAPSERVE_API_KEY
+    });
+    const callId = call?.callId || call?.id || '';
+    await storeOutboundCall(
+      call,
+      { name: lead.name, course: 'SnapServe Voice AI Meeting' },
+      agentId,
+      lead.phone
+    );
+    const updatedLead = await recordMeetingLeadCall(leadId, {
+      agentId,
+      callId,
+      status: call?.status || (call?.queued ? 'queued' : 'calling')
+    });
+    return res.status(200).json({ success: true, call, lead: updatedLead });
+  } catch (error) {
+    console.error('Meeting lead call initiation failed:', error);
+    if (lead) {
+      await recordMeetingLeadCall(leadId, { agentId, status: 'failed' })
+        .catch(updateError => console.error('Meeting lead failed-call update error:', updateError.message));
+    }
+    return res.status(500).json({ error: error.message || 'Could not initiate the meeting call.' });
   }
 });
 
