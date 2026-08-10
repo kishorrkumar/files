@@ -34,6 +34,8 @@ test('builds a lead payload for the webhook', () => {
     email: 'jane@example.com',
     phone: '9876543210',
     course: 'Design',
+    interest: null,
+    attendance: null,
     source: 'landing_page_form'
   });
 });
