@@ -3,7 +3,6 @@ require('dotenv').config();
 const path = require('path');
 const { appendLead } = require('../lead-storage');
 const { selectAgentForCourse, isLeadEligibleForCall } = require('../course-agent');
-const { syncLeadToSnapserve } = require('../snapserve');
 const { databaseUrl } = require('../database-config');
 
 const RENDER_API_URL = process.env.RENDER_API_URL || '';
@@ -106,19 +105,12 @@ module.exports = async (req, res) => {
     const courseAgent = payload.agent || !eligibleForCall ? null : await selectAgentForCourse(course);
     payload.agent = eligibleForCall ? (payload.agent || courseAgent?.id || null) : null;
     const saved = await appendLead(CSV_PATH, payload);
-    let snapserveLeadSync = { skipped: true };
-    try {
-      snapserveLeadSync = await syncLeadToSnapserve(saved);
-    } catch (syncError) {
-      console.error('SnapServe lead mail sync failed:', syncError.message);
-    }
 
     return res.status(200).json({
       success: true,
       id: saved.id,
       created_at: saved.created_at,
-      storage: 'database',
-      snapserve_synced: snapserveLeadSync.synced === true
+      storage: 'database'
     });
   } catch (error) {
     console.error('Direct lead storage failed:', error);
