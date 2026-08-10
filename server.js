@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
-const { initiateOutboundCall, getLeadWebhookConfig, buildLeadWebhookPayload, fetchSnapserveAgents } = require('./snapserve');
+const { initiateOutboundCall, fetchSnapserveAgents } = require('./snapserve');
 const { selectAgentForCourse, courseForAgentName } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
@@ -107,7 +107,7 @@ app.post('/webhook/snapserve', handleSnapserveWebhook);
 app.post('/webhook', handleSnapserveWebhook);
 app.post('/api/webhook/snapserve', handleSnapserveWebhook);
 
-app.post('/submit-lead', async (req, res) => {
+const handleLeadSubmit = async (req, res) => {
 
   const { name, email, phone, course, agent } = req.body || {};
   const courseNames = {
@@ -115,12 +115,13 @@ app.post('/submit-lead', async (req, res) => {
     'UI/UX Design Mastery': 'UI/UX Design Mastery',
     'Full-Stack Development': 'Full-Stack Web Development',
     'Full-Stack Web Development': 'Full-Stack Web Development',
-    'Filmmaking & Video Editing': 'Filmmaking & Video Editing'
+    'Filmmaking & Video Editing': 'Filmmaking & Video Editing',
+    'SnapServe Voice AI Hackathon': 'SnapServe Voice AI Hackathon'
   };
   const normalizedCourse = courseNames[course];
 
   if (!normalizedCourse) {
-    return res.status(400).json({ error: 'Please select a valid academy course' });
+    return res.status(400).json({ error: 'Please select a valid campaign' });
   }
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -136,6 +137,12 @@ app.post('/submit-lead', async (req, res) => {
   if (phoneDigits.length < 8) {
     return res.status(400).json({ error: 'A valid phone number is required' });
   }
+  if (normalizedCourse === 'SnapServe Voice AI Hackathon') {
+    if (!req.body?.interest) return res.status(400).json({ error: 'Please select your level of interest' });
+    if (!req.body?.attendance && !req.body?.attend) {
+      return res.status(400).json({ error: 'Please select whether you can attend' });
+    }
+  }
 
   try {
     const courseAgent = agent ? null : await selectAgentForCourse(normalizedCourse);
@@ -145,7 +152,10 @@ app.post('/submit-lead', async (req, res) => {
       email: email.trim(),
       phone: phone.trim(),
       course: normalizedCourse,
-      agent: assignedAgentId
+      agent: assignedAgentId,
+      interest: req.body?.interest || null,
+      attendance: req.body?.attendance || req.body?.attend || null,
+      source: req.body?.source || 'landing_page_form'
     });
 
     try {
@@ -164,25 +174,6 @@ app.post('/submit-lead', async (req, res) => {
       console.error('Automatic Snapserve call initiation failed:', callErr);
     }
 
-    try {
-      const { webhookUrl } = getLeadWebhookConfig();
-      if (webhookUrl) {
-        const payload = buildLeadWebhookPayload({ name, email, phone, course: normalizedCourse, source: 'landing_page_form' });
-        const webhookResponse = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!webhookResponse.ok) {
-          const errorText = await webhookResponse.text().catch(() => '');
-          console.error('Lead webhook failed:', webhookResponse.status, errorText);
-        }
-      }
-    } catch (webhookErr) {
-      console.error('Lead webhook submission failed:', webhookErr);
-    }
-
     return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
   } catch (err) {
     console.error('submit-lead error:', err);
@@ -190,7 +181,10 @@ app.post('/submit-lead', async (req, res) => {
       error: 'The admissions database is temporarily unavailable. Please try again shortly.'
     });
   }
-});
+};
+
+app.post('/submit-lead', handleLeadSubmit);
+app.post('/api/submit-lead', handleLeadSubmit);
 
 app.get('/agents', requireAdmin, async (req, res) => {
   try {
@@ -377,7 +371,7 @@ app.get('/admin', requireAdminPage, (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('Render backend is running');
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(port, () => {
