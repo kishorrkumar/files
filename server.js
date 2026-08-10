@@ -4,7 +4,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
 const { initiateOutboundCall, fetchSnapserveAgents } = require('./snapserve');
-const { selectAgentForCourse, courseForAgentName } = require('./course-agent');
+const { selectAgentForCourse, courseForAgentName, isLeadEligibleForCall } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
 const { upsertCall, getCalls } = require('./call-storage');
 const { callFromPayload, callsFromResponse } = require('./call-normalization');
@@ -145,8 +145,9 @@ const handleLeadSubmit = async (req, res) => {
   }
 
   try {
-    const courseAgent = agent ? null : await selectAgentForCourse(normalizedCourse);
-    const assignedAgentId = agent || courseAgent?.id || null;
+    const eligibleForCall = isLeadEligibleForCall(normalizedCourse, req.body?.interest);
+    const courseAgent = agent || !eligibleForCall ? null : await selectAgentForCourse(normalizedCourse);
+    const assignedAgentId = eligibleForCall ? (agent || courseAgent?.id || null) : null;
     const result = await appendLead(CSV_PATH, {
       name: name.trim(),
       email: email.trim(),
@@ -160,8 +161,11 @@ const handleLeadSubmit = async (req, res) => {
 
     try {
       const autoCallEnabled = await getAutoCallEnabled();
-      const agentId = assignedAgentId || process.env.SNAPSERVE_AGENT_ID || '';
-      if (autoCallEnabled && agentId) {
+      const fallbackAgentId = normalizedCourse === 'SnapServe Voice AI Hackathon'
+        ? ''
+        : process.env.SNAPSERVE_AGENT_ID || '';
+      const agentId = assignedAgentId || fallbackAgentId;
+      if (autoCallEnabled && eligibleForCall && agentId) {
         const call = await initiateOutboundCall({
           phone,
           agentId,
@@ -201,7 +205,7 @@ app.get('/leads', requireAdmin, async (req, res) => {
     const leads = await getLeads(CSV_PATH);
     const courseDefaults = new Map();
     for (const lead of leads) {
-      if (lead.agent || !lead.course) continue;
+      if (lead.agent || !lead.course || !isLeadEligibleForCall(lead.course, lead.interest)) continue;
       if (!courseDefaults.has(lead.course)) {
         courseDefaults.set(lead.course, await selectAgentForCourse(lead.course));
       }
@@ -222,8 +226,13 @@ app.patch('/leads/:id/agent', requireAdmin, async (req, res) => {
   const { agentId } = req.body || {};
   if (!agentId) return res.status(400).json({ error: 'Agent ID is required.' });
   try {
+    const leads = await getLeads(CSV_PATH);
+    const existingLead = leads.find((lead) => String(lead.id) === String(req.params.id));
+    if (!existingLead) return res.status(404).json({ error: 'Lead not found.' });
+    if (!isLeadEligibleForCall(existingLead.course, existingLead.interest)) {
+      return res.status(403).json({ error: 'Only interested Hackathon leads can be assigned to a calling agent.' });
+    }
     const lead = await updateLeadAgent(CSV_PATH, req.params.id, agentId);
-    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
     return res.status(200).json({ success: true, lead });
   } catch (error) {
     console.error('update-lead-agent error:', error);
@@ -252,15 +261,18 @@ app.post('/settings/auto-call', requireAdmin, async (req, res) => {
 app.post('/call-lead', requireAdmin, async (req, res) => {
   const { leadId, agentId, phone } = req.body || {};
 
-  if (!phone || !agentId) {
-    return res.status(400).json({ error: 'Phone number and agent ID are required.' });
+  if (!leadId || !phone || !agentId) {
+    return res.status(400).json({ error: 'Lead, phone number and agent ID are required.' });
   }
 
   try {
-    let selectedLead = null;
-    if (leadId) {
-      selectedLead = await updateLeadAgent(CSV_PATH, leadId, agentId);
+    const leads = await getLeads(CSV_PATH);
+    const existingLead = leads.find((lead) => String(lead.id) === String(leadId));
+    if (!existingLead) return res.status(404).json({ error: 'Lead not found.' });
+    if (!isLeadEligibleForCall(existingLead.course, existingLead.interest)) {
+      return res.status(403).json({ error: 'Only interested Hackathon leads can be called.' });
     }
+    const selectedLead = await updateLeadAgent(CSV_PATH, leadId, agentId);
 
     const call = await initiateOutboundCall({
       phone,
