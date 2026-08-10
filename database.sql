@@ -62,3 +62,28 @@ CREATE TABLE IF NOT EXISTS snapserve_webhooks (
 );
 
 CREATE INDEX IF NOT EXISTS snapserve_webhooks_call_id_idx ON snapserve_webhooks (call_id);
+
+CREATE TABLE IF NOT EXISTS snapserve_meeting_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ref_id VARCHAR(20) UNIQUE NOT NULL,
+  full_name VARCHAR(120) NOT NULL,
+  phone VARCHAR(24) NOT NULL,
+  email VARCHAR(254) NOT NULL,
+  interest VARCHAR(40) NOT NULL,
+  attend VARCHAR(40) NOT NULL,
+  lead_status VARCHAR(20) NOT NULL DEFAULT 'new',
+  call_status VARCHAR(20) NOT NULL DEFAULT 'not_called',
+  call_attempts INTEGER NOT NULL DEFAULT 0,
+  assigned_agent_id TEXT,
+  last_call_id TEXT,
+  last_called_at TIMESTAMPTZ,
+  call_notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS snapserve_meeting_leads_created_idx
+ON snapserve_meeting_leads (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS snapserve_meeting_leads_call_status_idx
+ON snapserve_meeting_leads (call_status);
