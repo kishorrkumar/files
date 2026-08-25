@@ -3,561 +3,211 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f5f5f7" />
   <title>SnapServe Voice CRM</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f6f1e7;
-      --card: #ffffff;
-      --ink: #15141c;
-      --muted: #6f6b7a;
-      --accent: #6f4ff2;
-      --border: #e7dfd0;
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--ink);
-    }
-
-    .page {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 32px 20px 48px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: 0 18px 40px -24px rgba(21, 20, 28, 0.25);
-      overflow: hidden;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 24px 28px;
-      border-bottom: 1px solid var(--border);
-      background: #fcfaf5;
-    }
-
-    .header h1 {
-      margin: 0;
-      font-size: 1.4rem;
-    }
-
-    .header button {
-      border: none;
-      background: var(--accent);
-      color: white;
-      border-radius: 999px;
-      padding: 10px 16px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-
-    .table-wrap {
-      padding: 20px 28px 28px;
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 12px 10px;
-      border-bottom: 1px solid var(--border);
-      vertical-align: top;
-    }
-
-    th {
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .empty {
-      padding: 24px;
-      text-align: center;
-      color: var(--muted);
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: #efe7ff;
-      color: var(--accent);
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-
-    .agent-select {
-      padding: 6px 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #fdfbf7;
-      font-size: 0.85rem;
-      color: var(--ink);
-      font-family: inherit;
-      cursor: pointer;
-    }
-
-    .call-btn {
-      border: none;
-      background: var(--ink);
-      color: var(--bg);
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.1s ease;
-      white-space: nowrap;
-    }
-    .call-btn:hover {
-      background: var(--accent);
-    }
-    .call-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-      margin-top: 28px;
-      margin-bottom: 28px;
-    }
-
-    .metric-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 24px;
-      box-shadow: 0 10px 30px -15px rgba(21, 20, 28, 0.15);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .metric-title {
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-
-    .metric-value {
-      font-size: 2.2rem;
-      font-weight: 700;
-      color: var(--ink);
-      line-height: 1;
-      margin-bottom: 6px;
-    }
-
-    .metric-desc {
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    .filter-bar {
-      display: grid;
-      grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr)) auto;
-      gap: 12px;
-      align-items: end;
-      padding: 18px 28px;
-      background: #fff;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .filter-field {
-      display: grid;
-      gap: 6px;
-    }
-
-    .filter-field label {
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .filter-input {
-      width: 100%;
-      min-height: 42px;
-      padding: 9px 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #fdfbf7;
-      color: var(--ink);
-      font: inherit;
-      outline: none;
-    }
-
-    .filter-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(111, 79, 242, 0.12);
-    }
-
-    .clear-btn {
-      min-height: 42px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 9px 14px;
-      background: white;
-      color: var(--ink);
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .result-count {
-      padding: 10px 28px 0;
-      color: var(--muted);
-      font-size: 0.82rem;
-      font-weight: 600;
-    }
-
-    .agent-select {
-      width: min(100%, 270px);
-      min-width: 220px;
-    }
-
-    .agent-hint {
-      display: block;
-      margin-top: 5px;
-      color: var(--muted);
-      font-size: 0.72rem;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .auto-call-control {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      color: var(--muted);
-      font-size: 0.85rem;
-      font-weight: 700;
-    }
-
-    .switch {
-      position: relative;
-      width: 48px;
-      height: 26px;
-      display: inline-block;
-    }
-
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .switch-slider {
-      position: absolute;
-      inset: 0;
-      cursor: pointer;
-      border-radius: 999px;
-      background: #c9c4d2;
-      transition: 0.2s;
-    }
-    .switch-slider::before {
-      content: '';
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      left: 3px;
-      top: 3px;
-      border-radius: 50%;
-      background: white;
-      transition: 0.2s;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    .switch input:checked + .switch-slider { background: var(--accent); }
-    .switch input:checked + .switch-slider::before { transform: translateX(22px); }
-
-    .mini-btn {
-      border: 1px solid #d8ccff;
-      background: #f4f0ff;
-      color: var(--accent);
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      display: none;
-      place-items: center;
-      padding: 20px;
-      background: rgba(21, 20, 28, 0.48);
-      z-index: 1000;
-    }
-
-    .modal-backdrop.open { display: grid; }
-
-    .mini-window {
-      width: min(560px, 100%);
-      max-height: 75vh;
-      overflow: auto;
-      background: white;
-      border-radius: 18px;
-      box-shadow: 0 28px 80px rgba(21, 20, 28, 0.32);
-    }
-
-    .mini-window-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .mini-window-head h2 { margin: 0; font-size: 1.05rem; }
-    .mini-window-close {
-      border: 0;
-      background: #f1edf8;
-      border-radius: 999px;
-      width: 34px;
-      height: 34px;
-      cursor: pointer;
-      font-size: 1rem;
-    }
-
-    .mini-window-body { padding: 20px; }
-    .summary-meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
-    .summary-copy { margin: 0; line-height: 1.65; white-space: pre-wrap; }
-    .recording-player { display: none; }
-    .recording-player.open { display: block; }
-    .waveform {
-      min-height: 96px;
-      padding: 12px 0;
-    }
-    .recording-controls {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .recording-time {
-      color: var(--muted);
-      font-size: 0.82rem;
-      font-variant-numeric: tabular-nums;
-    }
-    .recording-error { min-height: 20px; margin-top: 10px; color: #c52828; font-size: 0.82rem; }
-
-    @media (max-width: 900px) {
-      .filter-bar { grid-template-columns: 1fr 1fr; }
-      .clear-btn { width: 100%; }
-    }
-
-    @media (max-width: 560px) {
-      .filter-bar { grid-template-columns: 1fr; }
-      .page { padding-inline: 10px; }
-    }
-  </style>
+  <link rel="stylesheet" href="/admin.css" />
 </head>
 <body>
-  <main class="page">
-    <section class="card">
-      <div class="header">
-        <h1>Available Agents</h1>
-        <button id="refreshAgentsBtn" type="button">Refresh</button>
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <a class="brand" href="/admin" aria-label="SnapServe Voice CRM home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span>
+          <strong>SnapServe</strong>
+          <small>Voice CRM</small>
+        </span>
+      </a>
+
+      <div class="app-actions">
+        <span class="live-status"><span aria-hidden="true"></span>Live operations</span>
+        <button id="logoutBtn" class="button button-secondary" type="button">Sign out</button>
       </div>
-      <div class="filter-bar" aria-label="Agent filters">
-        <div class="filter-field">
-          <label for="agentSearch">Search agent</label>
-          <input id="agentSearch" class="filter-input" type="search" placeholder="Name, ID or model" />
-        </div>
-        <div class="filter-field">
-          <label for="agentStatusFilter">Status</label>
-          <select id="agentStatusFilter" class="filter-input"><option value="">All statuses</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="agentLanguageFilter">Language</label>
-          <select id="agentLanguageFilter" class="filter-input"><option value="">All languages</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="agentTypeFilter">Type</label>
-          <select id="agentTypeFilter" class="filter-input"><option value="">All types</option></select>
-        </div>
-        <button id="clearAgentFilters" class="clear-btn" type="button">Clear filters</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="hero" aria-labelledby="workspaceTitle">
+      <div>
+        <p class="eyebrow">Operations workspace</p>
+        <h1 id="workspaceTitle">Analytics</h1>
+        <p id="workspaceDescription" class="hero-copy">A clear view of call performance and agent activity.</p>
       </div>
-      <div id="agentResultCount" class="result-count">Loading agents…</div>
-      <div class="table-wrap">
-        <table id="agentsTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Language</th>
-              <th>Model</th>
-            </tr>
-          </thead>
-          <tbody id="agentsBody"></tbody>
-        </table>
-      </div>
+
+      <label class="workspace-picker" for="workspaceSelect">
+        <span>View</span>
+        <select id="workspaceSelect" aria-controls="analyticsPanel agentsPanel leadsPanel callsPanel">
+          <option value="analytics">Analytics overview</option>
+          <option value="agents">Voice agents</option>
+          <option value="leads">Lead management</option>
+          <option value="calls">Call records</option>
+        </select>
+      </label>
     </section>
 
-    <section class="metrics-grid">
-      <div class="metric-card">
-        <div>
-          <div class="metric-title">Total Calls</div>
+    <section id="analyticsPanel" class="workspace-panel" data-workspace="analytics">
+      <div class="metrics-grid">
+        <article class="metric-card">
+          <div class="metric-icon" aria-hidden="true">↗</div>
+          <div class="metric-title">Total calls</div>
           <div class="metric-value" id="totalCallsVal">0</div>
-        </div>
-        <div class="metric-desc">Outbound calls triggered</div>
-      </div>
-      <div class="metric-card">
-        <div>
-          <div class="metric-title">Call Success Rate</div>
+          <div class="metric-desc">Outbound calls in the current view</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon" aria-hidden="true">✓</div>
+          <div class="metric-title">Success rate</div>
           <div class="metric-value" id="successRateVal">0%</div>
-        </div>
-        <div class="metric-desc" id="successRateDesc">Based on success evaluation</div>
-      </div>
-      <div class="metric-card">
-        <div>
-          <div class="metric-title">Avg Call Duration</div>
+          <div class="metric-desc" id="successRateDesc">Based on call results</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon" aria-hidden="true">◷</div>
+          <div class="metric-title">Average duration</div>
           <div class="metric-value" id="avgDurationVal">0s</div>
-        </div>
-        <div class="metric-desc">Conversation length mean</div>
-      </div>
-      <div class="metric-card">
-        <div>
-          <div class="metric-title">Active Agents Utilized</div>
+          <div class="metric-desc">Average conversation length</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-icon" aria-hidden="true">◎</div>
+          <div class="metric-title">Active agents</div>
           <div class="metric-value" id="activeAgentsVal">0</div>
-        </div>
-        <div class="metric-desc">Unique voice agents deployed</div>
+          <div class="metric-desc">Unique agents used for calls</div>
+        </article>
       </div>
+
+      <article class="surface overview-surface">
+        <div>
+          <p class="eyebrow">Everything in one place</p>
+          <h2>Simple controls. Complete visibility.</h2>
+          <p>Use the View dropdown above to manage agents, assign leads, start calls, and review every recording, transcript, and summary.</p>
+        </div>
+        <div class="quick-grid" aria-label="Workspace shortcuts">
+          <button class="quick-link" type="button" data-workspace-target="agents">
+            <span class="quick-icon" aria-hidden="true">A</span>
+            <span><strong>Voice agents</strong><small>Availability and models</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+          <button class="quick-link" type="button" data-workspace-target="leads">
+            <span class="quick-icon" aria-hidden="true">L</span>
+            <span><strong>Lead management</strong><small>Assign and call</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+          <button class="quick-link" type="button" data-workspace-target="calls">
+            <span class="quick-icon" aria-hidden="true">C</span>
+            <span><strong>Call records</strong><small>Playback and outcomes</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
+      </article>
     </section>
 
-    <section class="card" style="margin-top: 28px;">
-      <div class="header">
-        <h1>Hackathon Lead CRM - Assign Agent & Call</h1>
-        <div class="header-actions">
-          <div class="auto-call-control">
-            <span id="autoCallLabel">Auto call off</span>
-            <label class="switch" title="Automatically call new lead submissions">
-              <input id="autoCallToggle" type="checkbox" />
-              <span class="switch-slider"></span>
-            </label>
+    <section id="agentsPanel" class="workspace-panel" data-workspace="agents" hidden>
+      <article class="surface">
+        <div class="surface-head">
+          <div>
+            <p class="eyebrow">Agent directory</p>
+            <h2>Voice agents</h2>
+            <p>Find the right active agent and review its configuration.</p>
           </div>
-          <button id="refreshBtn" type="button">Refresh</button>
-          <button id="logoutBtn" type="button" style="background:#ede8f5;color:var(--ink);">Logout</button>
+          <button id="refreshAgentsBtn" class="button button-primary" type="button">Refresh agents</button>
         </div>
-      </div>
-      <div class="filter-bar" style="grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) minmax(180px,1fr) auto;" aria-label="Lead filters">
-        <div class="filter-field">
-          <label for="leadSearch">Search lead</label>
-          <input id="leadSearch" class="filter-input" type="search" placeholder="Name, email or phone" />
+
+        <details class="filter-disclosure">
+          <summary>Filter agents <span id="agentResultCount">Loading agents…</span></summary>
+          <div class="filter-bar" aria-label="Agent filters">
+            <label class="filter-field" for="agentSearch"><span>Search</span><input id="agentSearch" class="filter-input" type="search" placeholder="Name, ID or model" /></label>
+            <label class="filter-field" for="agentStatusFilter"><span>Status</span><select id="agentStatusFilter" class="filter-input"><option value="">All statuses</option></select></label>
+            <label class="filter-field" for="agentLanguageFilter"><span>Language</span><select id="agentLanguageFilter" class="filter-input"><option value="">All languages</option></select></label>
+            <label class="filter-field" for="agentTypeFilter"><span>Type</span><select id="agentTypeFilter" class="filter-input"><option value="">All types</option></select></label>
+            <button id="clearAgentFilters" class="button button-secondary clear-btn" type="button">Reset</button>
+          </div>
+        </details>
+
+        <div class="table-wrap">
+          <table id="agentsTable">
+            <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>Language</th><th>Model</th></tr></thead>
+            <tbody id="agentsBody"></tbody>
+          </table>
         </div>
-        <div class="filter-field">
-          <label for="leadCourseFilter">Campaign</label>
-          <select id="leadCourseFilter" class="filter-input"><option value="">All campaigns</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="leadAssignmentFilter">Assignment</label>
-          <select id="leadAssignmentFilter" class="filter-input">
-            <option value="">All leads</option>
-            <option value="assigned">Assigned</option>
-            <option value="unassigned">Unassigned</option>
-          </select>
-        </div>
-        <button id="clearLeadFilters" class="clear-btn" type="button">Clear filters</button>
-      </div>
-      <div id="leadResultCount" class="result-count">Loading leads…</div>
-      <div class="table-wrap">
-        <table id="leadsTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Campaign</th>
-              <th>Interest</th>
-              <th>Attendance</th>
-              <th>Assign Agent</th>
-              <th>Action</th>
-              <th>Submitted</th>
-            </tr>
-          </thead>
-          <tbody id="leadsBody"></tbody>
-        </table>
-      </div>
+      </article>
     </section>
 
-    <section class="card" style="margin-top: 28px;">
-      <div class="header">
-        <h1>Snapserve Call Summaries & Details</h1>
-        <button id="refreshCallsBtn" type="button">Refresh Calls</button>
-      </div>
-      <div class="filter-bar" aria-label="Call log filters">
-        <div class="filter-field">
-          <label for="callSearch">Search calls</label>
-          <input id="callSearch" class="filter-input" type="search" placeholder="Student, phone, call ID or summary" />
+    <section id="leadsPanel" class="workspace-panel" data-workspace="leads" hidden>
+      <article class="surface">
+        <div class="surface-head">
+          <div>
+            <p class="eyebrow">Lead operations</p>
+            <h2>Lead management</h2>
+            <p>Assign the best agent and start a call when the lead is ready.</p>
+          </div>
+          <div class="surface-actions">
+            <label class="auto-call-control">
+              <span id="autoCallLabel">Auto call off</span>
+              <span class="switch">
+                <input id="autoCallToggle" type="checkbox" />
+                <span class="switch-slider"></span>
+              </span>
+            </label>
+            <button id="refreshBtn" class="button button-primary" type="button">Refresh leads</button>
+          </div>
         </div>
-        <div class="filter-field">
-          <label for="callAgentFilter">Agent</label>
-          <select id="callAgentFilter" class="filter-input"><option value="">All agents</option></select>
+
+        <details class="filter-disclosure">
+          <summary>Filter leads <span id="leadResultCount">Loading leads…</span></summary>
+          <div class="filter-bar filter-bar-leads" aria-label="Lead filters">
+            <label class="filter-field" for="leadSearch"><span>Search</span><input id="leadSearch" class="filter-input" type="search" placeholder="Name, email or phone" /></label>
+            <label class="filter-field" for="leadCourseFilter"><span>Campaign</span><select id="leadCourseFilter" class="filter-input"><option value="">All campaigns</option></select></label>
+            <label class="filter-field" for="leadAssignmentFilter"><span>Assignment</span><select id="leadAssignmentFilter" class="filter-input"><option value="">All leads</option><option value="assigned">Assigned</option><option value="unassigned">Unassigned</option></select></label>
+            <button id="clearLeadFilters" class="button button-secondary clear-btn" type="button">Reset</button>
+          </div>
+        </details>
+
+        <div class="table-wrap">
+          <table id="leadsTable">
+            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Campaign</th><th>Interest</th><th>Attendance</th><th>Assign agent</th><th>Action</th><th>Submitted</th></tr></thead>
+            <tbody id="leadsBody"></tbody>
+          </table>
         </div>
-        <div class="filter-field">
-          <label for="callCourseFilter">Course</label>
-          <select id="callCourseFilter" class="filter-input"><option value="">All courses</option></select>
+      </article>
+    </section>
+
+    <section id="callsPanel" class="workspace-panel" data-workspace="calls" hidden>
+      <article class="surface">
+        <div class="surface-head">
+          <div>
+            <p class="eyebrow">Conversation history</p>
+            <h2>Call records</h2>
+            <p>Review outcomes, summaries, transcripts, and recordings.</p>
+          </div>
+          <button id="refreshCallsBtn" class="button button-primary" type="button">Refresh calls</button>
         </div>
-        <div class="filter-field">
-          <label for="callStatusFilter">Call status</label>
-          <select id="callStatusFilter" class="filter-input"><option value="">All statuses</option></select>
+
+        <details class="filter-disclosure">
+          <summary>Filter calls <span id="callResultCount">Loading calls…</span></summary>
+          <div class="filter-bar" aria-label="Call log filters">
+            <label class="filter-field" for="callSearch"><span>Search</span><input id="callSearch" class="filter-input" type="search" placeholder="Student, phone, call ID or summary" /></label>
+            <label class="filter-field" for="callAgentFilter"><span>Agent</span><select id="callAgentFilter" class="filter-input"><option value="">All agents</option></select></label>
+            <label class="filter-field" for="callCourseFilter"><span>Course</span><select id="callCourseFilter" class="filter-input"><option value="">All courses</option></select></label>
+            <label class="filter-field" for="callStatusFilter"><span>Status</span><select id="callStatusFilter" class="filter-input"><option value="">All statuses</option></select></label>
+            <button id="clearCallFilters" class="button button-secondary clear-btn" type="button">Reset</button>
+          </div>
+        </details>
+
+        <div class="table-wrap">
+          <table id="callsTable">
+            <thead><tr><th>ID</th><th>Student</th><th>Agent</th><th>Course</th><th>Phone</th><th>Duration</th><th>Status</th><th>Summary</th><th>Success</th><th>Recording</th><th>Transcript</th><th>Date</th></tr></thead>
+            <tbody id="callsBody"></tbody>
+          </table>
         </div>
-        <button id="clearCallFilters" class="clear-btn" type="button">Clear filters</button>
-      </div>
-      <div id="callResultCount" class="result-count">Loading calls…</div>
-      <div class="table-wrap">
-        <table id="callsTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Student</th>
-              <th>Agent</th>
-              <th>Course</th>
-              <th>Phone</th>
-              <th>Duration</th>
-              <th>Status</th>
-              <th>Summary</th>
-              <th>Success Eval</th>
-              <th>Recording</th>
-              <th>Transcript</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody id="callsBody"></tbody>
-        </table>
-      </div>
+      </article>
     </section>
   </main>
 
   <div id="summaryModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="summaryModalTitle">
     <article class="mini-window">
       <div class="mini-window-head">
-        <h2 id="summaryModalTitle">Call summary</h2>
-        <button id="closeSummaryModal" class="mini-window-close" type="button" aria-label="Close summary">×</button>
+        <div>
+          <p class="eyebrow">Call detail</p>
+          <h2 id="summaryModalTitle">Call summary</h2>
+        </div>
+        <button id="closeSummaryModal" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
       <div class="mini-window-body">
         <div id="summaryModalMeta" class="summary-meta"></div>
@@ -565,7 +215,7 @@
         <div id="recordingPlayerWrap" class="recording-player">
           <div id="recordingWaveform" class="waveform" aria-label="Call recording waveform"></div>
           <div class="recording-controls">
-            <button id="recordingPlayPause" class="mini-btn" type="button" disabled>Play</button>
+            <button id="recordingPlayPause" class="button button-primary" type="button" disabled>Play</button>
             <span id="recordingTime" class="recording-time">0:00 / 0:00</span>
           </div>
           <div id="recordingError" class="recording-error" role="alert"></div>
@@ -575,688 +225,6 @@
   </div>
 
   <script src="/vendor/wavesurfer/wavesurfer.min.js"></script>
-  <script>
-    const agentsBody = document.getElementById('agentsBody');
-    const refreshAgentsBtn = document.getElementById('refreshAgentsBtn');
-    const leadsBody = document.getElementById('leadsBody');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const callsBody = document.getElementById('callsBody');
-    const refreshCallsBtn = document.getElementById('refreshCallsBtn');
-    const callSearch = document.getElementById('callSearch');
-    const callAgentFilter = document.getElementById('callAgentFilter');
-    const callCourseFilter = document.getElementById('callCourseFilter');
-    const callStatusFilter = document.getElementById('callStatusFilter');
-    const callResultCount = document.getElementById('callResultCount');
-
-    const agentSearch = document.getElementById('agentSearch');
-    const agentStatusFilter = document.getElementById('agentStatusFilter');
-    const agentLanguageFilter = document.getElementById('agentLanguageFilter');
-    const agentTypeFilter = document.getElementById('agentTypeFilter');
-    const agentResultCount = document.getElementById('agentResultCount');
-    const leadSearch = document.getElementById('leadSearch');
-    const leadCourseFilter = document.getElementById('leadCourseFilter');
-    const leadAssignmentFilter = document.getElementById('leadAssignmentFilter');
-    const leadResultCount = document.getElementById('leadResultCount');
-    const autoCallToggle = document.getElementById('autoCallToggle');
-    const autoCallLabel = document.getElementById('autoCallLabel');
-
-    const ACADEMY_COURSES = [
-      'UI/UX Design Mastery',
-      'Full-Stack Web Development',
-      'Filmmaking & Video Editing',
-      'SnapServe Voice AI Hackathon'
-    ];
-
-    const COURSE_AGENT_KEYWORDS = {
-      'UI/UX Design Mastery': ['ui', 'ux', 'design'],
-      'Full-Stack Web Development': ['full stack', 'full-stack', 'web development', 'developer'],
-      'Filmmaking & Video Editing': ['film', 'video', 'editing', 'editor'],
-      'SnapServe Voice AI Hackathon': ['snapserve', 'voice', 'hackathon', 'event', 'registration']
-    };
-
-    let availableAgents = [];
-    let availableLeads = [];
-    let availableCalls = [];
-    let visibleCalls = [];
-    let recordingWaveSurfer = null;
-
-    const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[char]);
-
-    const uniqueValues = (items, key) => [...new Set(items.map(item => item[key]).filter(Boolean))]
-      .sort((a, b) => String(a).localeCompare(String(b)));
-
-    function populateFilter(select, values, firstLabel) {
-      const current = select.value;
-      select.innerHTML = '<option value="">' + firstLabel + '</option>' +
-        values.map(value => '<option value="' + safe(value) + '">' + safe(value) + '</option>').join('');
-      select.value = values.includes(current) ? current : '';
-    }
-
-    function courseForAgent(agent) {
-      const name = String(agent?.name || '').toLowerCase();
-      return ACADEMY_COURSES.find(course =>
-        COURSE_AGENT_KEYWORDS[course].some(keyword => name.includes(keyword))
-      ) || '';
-    }
-
-    function agentsForCourse() {
-      return filteredAgents();
-    }
-
-    function filteredAgents() {
-      const query = agentSearch.value.trim().toLowerCase();
-      return availableAgents.filter(agent => {
-        const haystack = [agent.id, agent.name, agent.llmModel].join(' ').toLowerCase();
-        return (!query || haystack.includes(query)) &&
-          (!agentStatusFilter.value || agent.status === agentStatusFilter.value) &&
-          (!agentLanguageFilter.value || agent.language === agentLanguageFilter.value) &&
-          (!agentTypeFilter.value || agent.agentType === agentTypeFilter.value);
-      });
-    }
-
-    function renderAgents() {
-      const agents = filteredAgents();
-      agentResultCount.textContent = agents.length + ' of ' + availableAgents.length + ' agents shown';
-      if (!agents.length) {
-        agentsBody.innerHTML = '<tr><td colspan="6" class="empty">No agents match these filters.</td></tr>';
-      } else {
-        agentsBody.innerHTML = agents.map((agent) => `
-          <tr>
-            <td>#${safe(agent.id)}</td>
-            <td>${safe(agent.name || '—')}</td>
-            <td>${safe(agent.agentType || '—')}</td>
-            <td><span class="badge">${safe(agent.status || 'unknown')}</span></td>
-            <td>${safe(agent.language || '—')}</td>
-            <td>${safe(agent.llmModel || '—')}</td>
-          </tr>
-        `).join('');
-      }
-      renderLeads();
-    }
-
-    async function loadAgents() {
-      agentsBody.innerHTML = '<tr><td colspan="6" class="empty">Loading agents…</td></tr>';
-
-      try {
-        const response = await fetch('/agents');
-        if (!response.ok) {
-          throw new Error('Unable to load agents');
-        }
-
-        const agents = await response.json();
-        availableAgents = Array.isArray(agents) ? agents : [];
-
-        populateFilter(agentStatusFilter, uniqueValues(availableAgents, 'status'), 'All statuses');
-        populateFilter(agentLanguageFilter, uniqueValues(availableAgents, 'language'), 'All languages');
-        populateFilter(agentTypeFilter, uniqueValues(availableAgents, 'agentType'), 'All types');
-        renderAgents();
-        loadLeads();
-      } catch (error) {
-        agentsBody.innerHTML = `<tr><td colspan="6" class="empty">${error.message}</td></tr>`;
-      }
-    }
-
-    function renderLeads() {
-      const query = leadSearch.value.trim().toLowerCase();
-      const leads = availableLeads.filter(lead => {
-        const haystack = [lead.name, lead.email, lead.phone].join(' ').toLowerCase();
-        const assignmentMatches = !leadAssignmentFilter.value ||
-          (leadAssignmentFilter.value === 'assigned' ? Boolean(lead.agent) : !lead.agent);
-        return (!query || haystack.includes(query)) &&
-          (!leadCourseFilter.value || lead.course === leadCourseFilter.value) &&
-          assignmentMatches;
-      });
-
-      leadResultCount.textContent = leads.length + ' of ' + availableLeads.length + ' leads shown';
-      if (!leads.length) {
-        leadsBody.innerHTML = '<tr><td colspan="10" class="empty">No leads match these filters.</td></tr>';
-        return;
-      }
-
-      leadsBody.innerHTML = leads.map((lead) => {
-        const eligibleForCall = lead.course !== 'SnapServe Voice AI Hackathon' ||
-          String(lead.interest || '').trim().toLowerCase() === 'yes, very interested';
-        const agents = agentsForCourse(lead.course).slice().sort((a, b) => {
-          const lizaA = String(a.name || '').toLowerCase().includes('liza') ? 0 : 1;
-          const lizaB = String(b.name || '').toLowerCase().includes('liza') ? 0 : 1;
-          const activeA = String(a.status).toLowerCase() === 'active' ? 0 : 1;
-          const activeB = String(b.status).toLowerCase() === 'active' ? 0 : 1;
-          return lizaA - lizaB || activeA - activeB || String(a.name || a.id).localeCompare(String(b.name || b.id));
-        });
-        const selectedAgent = availableAgents.find(a => String(a.id) === String(lead.agent));
-        const options = agents.map(agent => {
-          const selected = String(lead.agent) === String(agent.id) ? 'selected' : '';
-          const label = [agent.name || 'Agent ' + agent.id, agent.language, agent.agentType, agent.status]
-            .filter(Boolean).join(' · ');
-          return '<option value="' + safe(agent.id) + '" ' + selected + '>' + safe(label) + '</option>';
-        }).join('');
-        const keepSelected = selectedAgent && !agents.some(a => String(a.id) === String(selectedAgent.id))
-          ? '<option value="' + safe(selectedAgent.id) + '" selected>' + safe((selectedAgent.name || 'Agent ' + selectedAgent.id) + ' · currently assigned') + '</option>'
-          : '';
-
-        return `
-          <tr>
-            <td>#${safe(lead.id)}</td>
-            <td>${safe(lead.name || '—')}</td>
-            <td>${safe(lead.email || '—')}</td>
-            <td>${safe(lead.phone || '—')}</td>
-            <td>${lead.course ? '<span class="badge">' + safe(lead.course) + '</span>' : '—'}</td>
-            <td>${safe(lead.interest || '—')}</td>
-            <td>${safe(lead.attendance || '—')}</td>
-            <td>
-              <select id="agent-select-${safe(lead.id)}" data-lead-id="${safe(lead.id)}" class="agent-select" aria-label="Choose agent for ${safe(lead.name || 'lead')}" ${eligibleForCall ? '' : 'disabled'}>
-                <option value="">Choose an agent</option>
-                ${keepSelected}${options}
-              </select>
-              <span class="agent-hint">${eligibleForCall ? (lead.agent ? 'Liza selected by default' : 'Waiting for Liza agent') : 'Not interested — calling disabled'}</span>
-            </td>
-            <td>
-              <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}" ${eligibleForCall ? '' : 'disabled'}>
-                ${eligibleForCall ? 'Call with Liza' : 'Not interested'}
-              </button>
-            </td>
-            <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    async function loadLeads() {
-      leadsBody.innerHTML = '<tr><td colspan="10" class="empty">Loading leads…</td></tr>';
-      try {
-        const response = await fetch('/leads');
-        if (!response.ok) throw new Error('Unable to load leads');
-        const leads = await response.json();
-        availableLeads = Array.isArray(leads) ? leads : [];
-        populateFilter(leadCourseFilter, uniqueValues(availableLeads, 'course'), 'All campaigns');
-        renderLeads();
-        if (availableCalls.length) renderCalls();
-      } catch (error) {
-        leadsBody.innerHTML = '<tr><td colspan="10" class="empty">' + safe(error.message) + '</td></tr>';
-      }
-    }
-
-    async function sessionFetch(url, options = {}) {
-      const response = await fetch(url, options);
-      if (response.status === 401) {
-        window.location.replace('/admin/login');
-        throw new Error('Admin session expired.');
-      }
-      return response;
-    }
-
-    async function saveAgentAssignment(select) {
-      const leadId = select.dataset.leadId;
-      const agentId = select.value;
-      if (!agentId) return;
-      const previousLead = availableLeads.find(lead => String(lead.id) === String(leadId));
-      const previousAgent = previousLead?.agent || '';
-
-      select.disabled = true;
-      try {
-        const response = await sessionFetch('/leads/' + encodeURIComponent(leadId) + '/agent', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Could not save selected agent');
-        if (previousLead) previousLead.agent = agentId;
-        const hint = select.parentElement.querySelector('.agent-hint');
-        if (hint) hint.textContent = 'Saved agent selected';
-      } catch (error) {
-        select.value = previousAgent;
-        if (!String(error.message).includes('session expired')) alert(error.message);
-      } finally {
-        select.disabled = false;
-      }
-    }
-
-    async function updateAutoCall(enabled) {
-      autoCallToggle.disabled = true;
-      try {
-        const response = await sessionFetch('/settings/auto-call', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'Could not save auto call setting');
-        autoCallToggle.checked = data.auto_call_enabled;
-        autoCallLabel.textContent = data.auto_call_enabled ? 'Auto call on' : 'Auto call off';
-      } catch (error) {
-        autoCallToggle.checked = !enabled;
-        if (!String(error.message).includes('session expired')) alert(error.message);
-      } finally {
-        autoCallToggle.disabled = false;
-      }
-    }
-
-    async function loadAutoCallSetting() {
-      try {
-        const response = await sessionFetch('/settings');
-        if (!response.ok) throw new Error('Could not load auto call setting');
-        const data = await response.json();
-        autoCallToggle.checked = data.auto_call_enabled === true;
-        autoCallLabel.textContent = autoCallToggle.checked ? 'Auto call on' : 'Auto call off';
-      } catch (error) {
-        if (!String(error.message).includes('session expired')) autoCallLabel.textContent = 'Auto call unavailable';
-      }
-    }
-
-    async function logoutAdmin() {
-      try {
-        await fetch('/admin/logout', { method: 'POST' });
-      } finally {
-        window.location.replace('/admin/login');
-      }
-    }
-
-    async function triggerCallForLead(leadId, phone) {
-      const select = document.getElementById(`agent-select-${leadId}`);
-      const callBtn = document.getElementById(`call-btn-${leadId}`);
-      const agentId = select ? select.value : '';
-
-      if (!agentId) {
-        alert('Please select an agent from the dropdown first.');
-        return;
-      }
-
-      callBtn.disabled = true;
-      callBtn.textContent = 'Calling…';
-
-      try {
-        const response = await fetch('/call-lead', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leadId, agentId, phone })
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to initiate call');
-        }
-
-        const call = data.call || {};
-        const status = String(call.status || '').toLowerCase();
-        const isQueued = call.queued || status === 'pending' || status === 'queued';
-
-        callBtn.textContent = isQueued ? 'Call queued' : 'Call started';
-        if (isQueued) {
-          const details = [
-            call.message || 'Waiting for the telephony provider.',
-            call.id != null ? 'Call ID: ' + call.id : '',
-            call.fromNumber ? 'From: ' + call.fromNumber : 'No caller number returned yet.'
-          ].filter(Boolean).join('\n');
-          alert(details);
-        }
-
-        setTimeout(() => {
-          callBtn.disabled = false;
-          callBtn.textContent = 'Call with Liza';
-          loadCalls();
-        }, 5000);
-      } catch (err) {
-        alert('Error initiating call: ' + err.message);
-        callBtn.disabled = false;
-        callBtn.textContent = '📞 Call Student';
-      }
-    }
-
-    const normalizedPhone = (phone) => String(phone || '').replace(/\D/g, '').slice(-10);
-
-    function enrichCalls(calls) {
-      return calls.map(call => {
-        const lead = availableLeads.find(item =>
-          normalizedPhone(item.phone) && normalizedPhone(item.phone) === normalizedPhone(call.phone)
-        );
-        const rawStatus = String(call.status || '').toLowerCase();
-        const hasCompletedData = Number(call.duration || 0) > 0 &&
-          Boolean(call.summary || call.transcript || call.recording_url);
-        return {
-          ...call,
-          student_name: call.student_name || call.student || lead?.name || '',
-          course: call.course || lead?.course || '',
-          filter_agent: call.agent_name || String(call.agent_id || ''),
-          status: (!rawStatus || rawStatus === 'unknown') && hasCompletedData
-            ? 'completed'
-            : (rawStatus || 'unknown'),
-          call_datetime: call.created_at || call.ended_at || ''
-        };
-      });
-    }
-
-    function deduplicateCalls(calls) {
-      const byKey = new Map();
-      calls.forEach(call => {
-        const key = call.snapserve_call_id
-          ? 'id:' + call.snapserve_call_id
-          : [
-              normalizedPhone(call.phone),
-              call.filter_agent,
-              Number(call.duration) || 0,
-              String(call.summary || '').slice(0, 80)
-            ].join('|');
-        const score = (call.snapserve_call_id ? 8 : 0) +
-          (call.call_datetime ? 4 : 0) +
-          (call.status === 'completed' ? 2 : 0) +
-          (call.transcript ? 1 : 0);
-        const existing = byKey.get(key);
-        if (!existing || score > existing.score) byKey.set(key, { call, score });
-      });
-      return [...byKey.values()].map(entry => entry.call);
-    }
-
-    function formatCallDate(value) {
-      if (!value) return 'Not available';
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return 'Not available';
-      return date.toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-      });
-    }
-
-    function updateCallMetrics(calls) {
-      const totalCalls = calls.length;
-      const totalDuration = calls.reduce((sum, call) => sum + (Number(call.duration) || 0), 0);
-      const uniqueAgents = new Set(calls.map(call => call.filter_agent).filter(Boolean));
-      const successfulCalls = calls.filter(call => {
-        const evaluation = String(call.success_evaluation || '').toLowerCase();
-        return ['success', 'true', 'passed', 'completed', 'interested', 'yes'].some(word => evaluation.includes(word)) ||
-          String(call.status).toLowerCase() === 'completed';
-      }).length;
-
-      document.getElementById('totalCallsVal').textContent = totalCalls;
-      document.getElementById('avgDurationVal').textContent = (totalCalls ? Math.round(totalDuration / totalCalls) : 0) + 's';
-      document.getElementById('successRateVal').textContent = (totalCalls ? Math.round((successfulCalls / totalCalls) * 100) : 0) + '%';
-      document.getElementById('successRateDesc').textContent = totalCalls
-        ? successfulCalls + ' out of ' + totalCalls + ' filtered calls positive'
-        : 'Based on filtered call results';
-      document.getElementById('activeAgentsVal').textContent = uniqueAgents.size;
-    }
-
-    function renderCalls() {
-      const enriched = deduplicateCalls(enrichCalls(availableCalls));
-      const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
-      populateFilter(callAgentFilter, relatedAgentNames, 'All related agents');
-      populateFilter(callCourseFilter, ACADEMY_COURSES, 'All three courses');
-      populateFilter(callStatusFilter, uniqueValues(enriched, 'status'), 'All statuses');
-
-      const query = callSearch.value.trim().toLowerCase();
-      const calls = enriched.filter(call => {
-        const haystack = [
-          call.id, call.student_name, call.phone, call.summary,
-          call.success_evaluation, call.filter_agent, call.course
-        ].join(' ').toLowerCase();
-        return (!query || haystack.includes(query)) &&
-          (!callAgentFilter.value || call.filter_agent === callAgentFilter.value) &&
-          (!callCourseFilter.value || call.course === callCourseFilter.value) &&
-          (!callStatusFilter.value || call.status === callStatusFilter.value);
-      });
-
-      visibleCalls = calls;
-      callResultCount.textContent = calls.length + ' calls shown';
-      updateCallMetrics(calls);
-
-      if (!calls.length) {
-        callsBody.innerHTML = '<tr><td colspan="12" class="empty">No calls match these filters.</td></tr>';
-        return;
-      }
-
-      callsBody.innerHTML = calls.map((call, callIndex) => `
-        <tr>
-          <td><strong>${safe(call.snapserve_call_id || call.id || '—')}</strong></td>
-          <td>${safe(call.student_name || 'Not available')}</td>
-          <td>${call.filter_agent ? '<span class="badge">' + safe(call.filter_agent) + '</span>' : '—'}</td>
-          <td>${call.course ? '<span class="badge">' + safe(call.course) + '</span>' : 'Not available'}</td>
-          <td>${safe(call.phone || '—')}</td>
-          <td>${safe((Number(call.duration) || 0) + 's')}</td>
-          <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
-          <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-summary-index="' + callIndex + '">View summary</button>' : '—'}</td>
-          <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
-          <td>${call.recording_url ? '<button class="mini-btn recording-btn" type="button" data-recording-index="' + callIndex + '">Play</button>' : '—'}</td>
-          <td>${call.transcript ? '<button class="mini-btn transcript-btn" type="button" data-transcript-index="' + callIndex + '">View transcript</button>' : '—'}</td>
-          <td style="font-size:0.85rem;white-space:nowrap;">${safe(formatCallDate(call.call_datetime))}</td>
-        </tr>
-      `).join('');
-    }
-
-    function openSummary(summaryIndex) {
-      const call = visibleCalls[Number(summaryIndex)];
-      if (!call) {
-        alert('This call summary is no longer available. Please refresh the call logs.');
-        return;
-      }
-
-      const title = call.student_name && call.student_name !== 'Not available'
-        ? call.student_name + ' — Call summary'
-        : 'Call summary';
-      const meta = [
-        call.course,
-        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
-        call.phone,
-        call.status ? 'Status: ' + call.status : ''
-      ].filter(Boolean);
-
-      document.getElementById('summaryModalTitle').textContent = title;
-      document.getElementById('summaryModalMeta').textContent = meta.join(' · ');
-      document.getElementById('summaryModalCopy').textContent =
-        typeof call.summary === 'string'
-          ? call.summary
-          : JSON.stringify(call.summary, null, 2);
-      showTextModalContent();
-      document.getElementById('summaryModal').classList.add('open');
-      document.body.style.overflow = 'hidden';
-      document.getElementById('closeSummaryModal').focus();
-    }
-
-    function openTranscript(transcriptIndex) {
-      const call = visibleCalls[Number(transcriptIndex)];
-      if (!call) {
-        alert('This transcript is no longer available. Please refresh the call logs.');
-        return;
-      }
-      document.getElementById('summaryModalTitle').textContent =
-        (call.student_name || 'Student') + ' — Call transcript';
-      document.getElementById('summaryModalMeta').textContent = [
-        call.snapserve_call_id ? 'Call ID: ' + call.snapserve_call_id : '',
-        call.course,
-        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
-        call.duration ? call.duration + ' seconds' : ''
-      ].filter(Boolean).join(' · ');
-      document.getElementById('summaryModalCopy').textContent =
-        typeof call.transcript === 'string'
-          ? call.transcript
-          : JSON.stringify(call.transcript, null, 2);
-      showTextModalContent();
-      document.getElementById('summaryModal').classList.add('open');
-      document.body.style.overflow = 'hidden';
-      document.getElementById('closeSummaryModal').focus();
-    }
-
-    function showTextModalContent() {
-      destroyRecordingPlayer();
-      document.getElementById('recordingPlayerWrap').classList.remove('open');
-      document.getElementById('recordingError').textContent = '';
-      document.getElementById('summaryModalCopy').style.display = '';
-    }
-
-    function openRecording(recordingIndex) {
-      const call = visibleCalls[Number(recordingIndex)];
-      if (!call?.recording_url) {
-        alert('This call recording is not available. Please refresh the call logs.');
-        return;
-      }
-
-      const error = document.getElementById('recordingError');
-      const playPauseButton = document.getElementById('recordingPlayPause');
-      document.getElementById('summaryModalTitle').textContent =
-        (call.student_name || 'Student') + ' — Call recording';
-      document.getElementById('summaryModalMeta').textContent = [
-        call.course,
-        call.filter_agent ? 'Agent: ' + call.filter_agent : '',
-        call.phone,
-        call.duration ? call.duration + ' seconds' : ''
-      ].filter(Boolean).join(' · ');
-      document.getElementById('summaryModalCopy').style.display = 'none';
-      document.getElementById('recordingPlayerWrap').classList.add('open');
-      error.textContent = 'Loading recording…';
-      playPauseButton.disabled = true;
-      document.getElementById('summaryModal').classList.add('open');
-      document.body.style.overflow = 'hidden';
-      destroyRecordingPlayer();
-
-      if (!window.WaveSurfer) {
-        error.textContent = 'The recording player could not be loaded. Refresh the page and try again.';
-        return;
-      }
-
-      const recordingId = call.snapserve_call_id || call.id;
-      recordingWaveSurfer = WaveSurfer.create({
-        container: '#recordingWaveform',
-        height: 72,
-        waveColor: '#d8ccff',
-        progressColor: '#6f4ff2',
-        cursorColor: '#15141c',
-        barWidth: 2,
-        barGap: 2,
-        barRadius: 2,
-        normalize: true,
-        url: '/calls/' + encodeURIComponent(recordingId) + '/recording'
-      });
-
-      recordingWaveSurfer.on('ready', () => {
-        playPauseButton.disabled = false;
-        error.textContent = '';
-        updateRecordingTime();
-      });
-      recordingWaveSurfer.on('timeupdate', updateRecordingTime);
-      recordingWaveSurfer.on('play', () => { playPauseButton.textContent = 'Pause'; });
-      recordingWaveSurfer.on('pause', () => { playPauseButton.textContent = 'Play'; });
-      recordingWaveSurfer.on('finish', () => { playPauseButton.textContent = 'Replay'; });
-      recordingWaveSurfer.on('error', () => {
-        playPauseButton.disabled = true;
-        error.textContent = 'This recording could not be played. Refresh the calls and try again.';
-      });
-    }
-
-    function formatAudioTime(seconds) {
-      const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-      return Math.floor(safeSeconds / 60) + ':' + String(safeSeconds % 60).padStart(2, '0');
-    }
-
-    function updateRecordingTime() {
-      const current = recordingWaveSurfer?.getCurrentTime() || 0;
-      const duration = recordingWaveSurfer?.getDuration() || 0;
-      document.getElementById('recordingTime').textContent =
-        formatAudioTime(current) + ' / ' + formatAudioTime(duration);
-    }
-
-    function destroyRecordingPlayer() {
-      if (recordingWaveSurfer) {
-        recordingWaveSurfer.destroy();
-        recordingWaveSurfer = null;
-      }
-      document.getElementById('recordingWaveform').replaceChildren();
-      document.getElementById('recordingPlayPause').textContent = 'Play';
-      document.getElementById('recordingPlayPause').disabled = true;
-      document.getElementById('recordingTime').textContent = '0:00 / 0:00';
-    }
-
-    function closeSummary() {
-      destroyRecordingPlayer();
-      document.getElementById('recordingPlayerWrap').classList.remove('open');
-      document.getElementById('recordingError').textContent = '';
-      document.getElementById('summaryModalCopy').style.display = '';
-      document.getElementById('summaryModal').classList.remove('open');
-      document.body.style.overflow = '';
-    }
-
-    async function loadCalls() {
-      callsBody.innerHTML = '<tr><td colspan="12" class="empty">Loading call records…</td></tr>';
-      try {
-        const response = await fetch('/calls');
-        if (!response.ok) throw new Error('Unable to load call logs');
-        const calls = await response.json();
-        availableCalls = Array.isArray(calls) ? calls : [];
-        renderCalls();
-      } catch (error) {
-        callsBody.innerHTML = '<tr><td colspan="12" class="empty">' + safe(error.message) + '</td></tr>';
-      }
-    }
-
-    [agentSearch, agentStatusFilter, agentLanguageFilter, agentTypeFilter].forEach(control => {
-      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderAgents);
-    });
-    [leadSearch, leadCourseFilter, leadAssignmentFilter].forEach(control => {
-      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderLeads);
-    });
-    [callSearch, callAgentFilter, callCourseFilter, callStatusFilter].forEach(control => {
-      control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderCalls);
-    });
-    document.getElementById('clearAgentFilters').addEventListener('click', () => {
-      agentSearch.value = '';
-      agentStatusFilter.value = '';
-      agentLanguageFilter.value = '';
-      agentTypeFilter.value = '';
-      renderAgents();
-    });
-    document.getElementById('clearLeadFilters').addEventListener('click', () => {
-      leadSearch.value = '';
-      leadCourseFilter.value = '';
-      leadAssignmentFilter.value = '';
-      renderLeads();
-    });
-    document.getElementById('clearCallFilters').addEventListener('click', () => {
-      callSearch.value = '';
-      callAgentFilter.value = '';
-      callCourseFilter.value = '';
-      callStatusFilter.value = '';
-      renderCalls();
-    });
-    leadsBody.addEventListener('click', (event) => {
-      const button = event.target.closest('.call-btn');
-      if (button) triggerCallForLead(button.dataset.leadId, button.dataset.phone);
-    });
-    leadsBody.addEventListener('change', (event) => {
-      if (event.target.matches('.agent-select')) saveAgentAssignment(event.target);
-    });
-    autoCallToggle.addEventListener('change', () => updateAutoCall(autoCallToggle.checked));
-    document.getElementById('logoutBtn').addEventListener('click', logoutAdmin);
-    callsBody.addEventListener('click', (event) => {
-      const summaryButton = event.target.closest('.summary-btn');
-      const transcriptButton = event.target.closest('.transcript-btn');
-      const recordingButton = event.target.closest('.recording-btn');
-      if (summaryButton) openSummary(summaryButton.dataset.summaryIndex);
-      if (transcriptButton) openTranscript(transcriptButton.dataset.transcriptIndex);
-      if (recordingButton) openRecording(recordingButton.dataset.recordingIndex);
-    });
-    document.getElementById('recordingPlayPause').addEventListener('click', () => {
-      if (recordingWaveSurfer) recordingWaveSurfer.playPause();
-    });
-    document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
-    document.getElementById('summaryModal').addEventListener('click', (event) => {
-      if (event.target.id === 'summaryModal') closeSummary();
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeSummary();
-    });
-
-    refreshAgentsBtn.addEventListener('click', loadAgents);
-    refreshBtn.addEventListener('click', loadLeads);
-    refreshCallsBtn.addEventListener('click', loadCalls);
-
-    loadAutoCallSetting();
-    loadAgents();
-    loadCalls();
-  </script>
+  <script src="/admin.js" defer></script>
 </body>
 </html>

@@ -478,6 +478,14 @@ app.get('/admin', requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+app.get('/admin.css', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.css'));
+});
+
+app.get('/admin.js', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.js'));
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
