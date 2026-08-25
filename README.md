@@ -8,6 +8,7 @@ A Hackathon registration website plus a password-protected CRM for managing lead
 - `/api/submit-lead` — Vercel-compatible lead submission endpoint
 - `/admin/login` — protected CRM login
 - `/admin` — leads, agent assignment, manual calls, auto-call setting, recordings, transcripts, and call metrics
+- recordings play inline with a WaveSurfer waveform; the authenticated backend proxy supports protected URLs and seeking
 - interested Hackathon leads default to the active SnapServe agent whose name contains `Liza`; other Hackathon leads cannot be assigned or called
 - Neon PostgreSQL persistence for leads, settings, and call records
 - SnapServe's official lead-capture widget for interested Hackathon leads, plus REST API or MCP integration for admin calls
@@ -28,6 +29,7 @@ Open `http://localhost:3000` for the website and `http://localhost:3000/admin` f
 DATABASE_URL=your Neon pooled connection string
 SNAPSERVE_API_KEY=your SnapServe API key
 SNAPSERVE_BASE_URL=https://app.snapserve.ai/api
+SNAPSERVE_RECORDING_HOSTS=optional comma-separated extra recording hosts
 RENDER_API_URL=https://your-render-service.onrender.com
 WEBHOOK_BASE_URL=https://your-render-service.onrender.com
 SNAPSERVE_WEBHOOK_SECRET=a long random secret

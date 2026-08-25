@@ -345,7 +345,21 @@
     .summary-copy { margin: 0; line-height: 1.65; white-space: pre-wrap; }
     .recording-player { display: none; }
     .recording-player.open { display: block; }
-    .recording-player audio { width: 100%; display: block; }
+    .waveform {
+      min-height: 96px;
+      padding: 12px 0;
+    }
+    .recording-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .recording-time {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
     .recording-error { min-height: 20px; margin-top: 10px; color: #c52828; font-size: 0.82rem; }
 
     @media (max-width: 900px) {
@@ -549,13 +563,18 @@
         <div id="summaryModalMeta" class="summary-meta"></div>
         <p id="summaryModalCopy" class="summary-copy"></p>
         <div id="recordingPlayerWrap" class="recording-player">
-          <audio id="recordingPlayer" controls preload="metadata">Your browser does not support audio playback.</audio>
+          <div id="recordingWaveform" class="waveform" aria-label="Call recording waveform"></div>
+          <div class="recording-controls">
+            <button id="recordingPlayPause" class="mini-btn" type="button" disabled>Play</button>
+            <span id="recordingTime" class="recording-time">0:00 / 0:00</span>
+          </div>
           <div id="recordingError" class="recording-error" role="alert"></div>
         </div>
       </div>
     </article>
   </div>
 
+  <script src="/vendor/wavesurfer/wavesurfer.min.js"></script>
   <script>
     const agentsBody = document.getElementById('agentsBody');
     const refreshAgentsBtn = document.getElementById('refreshAgentsBtn');
@@ -599,6 +618,7 @@
     let availableLeads = [];
     let availableCalls = [];
     let visibleCalls = [];
+    let recordingWaveSurfer = null;
 
     const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -1063,10 +1083,7 @@
     }
 
     function showTextModalContent() {
-      const player = document.getElementById('recordingPlayer');
-      player.pause();
-      player.removeAttribute('src');
-      player.load();
+      destroyRecordingPlayer();
       document.getElementById('recordingPlayerWrap').classList.remove('open');
       document.getElementById('recordingError').textContent = '';
       document.getElementById('summaryModalCopy').style.display = '';
@@ -1079,8 +1096,8 @@
         return;
       }
 
-      const player = document.getElementById('recordingPlayer');
       const error = document.getElementById('recordingError');
+      const playPauseButton = document.getElementById('recordingPlayPause');
       document.getElementById('summaryModalTitle').textContent =
         (call.student_name || 'Student') + ' — Call recording';
       document.getElementById('summaryModalMeta').textContent = [
@@ -1091,20 +1108,71 @@
       ].filter(Boolean).join(' · ');
       document.getElementById('summaryModalCopy').style.display = 'none';
       document.getElementById('recordingPlayerWrap').classList.add('open');
-      error.textContent = '';
-      player.src = call.recording_url;
+      error.textContent = 'Loading recording…';
+      playPauseButton.disabled = true;
       document.getElementById('summaryModal').classList.add('open');
       document.body.style.overflow = 'hidden';
-      player.play().catch(() => {
-        error.textContent = 'Press the play control to start this recording.';
+      destroyRecordingPlayer();
+
+      if (!window.WaveSurfer) {
+        error.textContent = 'The recording player could not be loaded. Refresh the page and try again.';
+        return;
+      }
+
+      const recordingId = call.snapserve_call_id || call.id;
+      recordingWaveSurfer = WaveSurfer.create({
+        container: '#recordingWaveform',
+        height: 72,
+        waveColor: '#d8ccff',
+        progressColor: '#6f4ff2',
+        cursorColor: '#15141c',
+        barWidth: 2,
+        barGap: 2,
+        barRadius: 2,
+        normalize: true,
+        url: '/calls/' + encodeURIComponent(recordingId) + '/recording'
+      });
+
+      recordingWaveSurfer.on('ready', () => {
+        playPauseButton.disabled = false;
+        error.textContent = '';
+        updateRecordingTime();
+      });
+      recordingWaveSurfer.on('timeupdate', updateRecordingTime);
+      recordingWaveSurfer.on('play', () => { playPauseButton.textContent = 'Pause'; });
+      recordingWaveSurfer.on('pause', () => { playPauseButton.textContent = 'Play'; });
+      recordingWaveSurfer.on('finish', () => { playPauseButton.textContent = 'Replay'; });
+      recordingWaveSurfer.on('error', () => {
+        playPauseButton.disabled = true;
+        error.textContent = 'This recording could not be played. Refresh the calls and try again.';
       });
     }
 
+    function formatAudioTime(seconds) {
+      const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+      return Math.floor(safeSeconds / 60) + ':' + String(safeSeconds % 60).padStart(2, '0');
+    }
+
+    function updateRecordingTime() {
+      const current = recordingWaveSurfer?.getCurrentTime() || 0;
+      const duration = recordingWaveSurfer?.getDuration() || 0;
+      document.getElementById('recordingTime').textContent =
+        formatAudioTime(current) + ' / ' + formatAudioTime(duration);
+    }
+
+    function destroyRecordingPlayer() {
+      if (recordingWaveSurfer) {
+        recordingWaveSurfer.destroy();
+        recordingWaveSurfer = null;
+      }
+      document.getElementById('recordingWaveform').replaceChildren();
+      document.getElementById('recordingPlayPause').textContent = 'Play';
+      document.getElementById('recordingPlayPause').disabled = true;
+      document.getElementById('recordingTime').textContent = '0:00 / 0:00';
+    }
+
     function closeSummary() {
-      const player = document.getElementById('recordingPlayer');
-      player.pause();
-      player.removeAttribute('src');
-      player.load();
+      destroyRecordingPlayer();
       document.getElementById('recordingPlayerWrap').classList.remove('open');
       document.getElementById('recordingError').textContent = '';
       document.getElementById('summaryModalCopy').style.display = '';
@@ -1171,9 +1239,8 @@
       if (transcriptButton) openTranscript(transcriptButton.dataset.transcriptIndex);
       if (recordingButton) openRecording(recordingButton.dataset.recordingIndex);
     });
-    document.getElementById('recordingPlayer').addEventListener('error', () => {
-      document.getElementById('recordingError').textContent =
-        'This recording could not be played. Refresh the calls and try again.';
+    document.getElementById('recordingPlayPause').addEventListener('click', () => {
+      if (recordingWaveSurfer) recordingWaveSurfer.playPause();
     });
     document.getElementById('closeSummaryModal').addEventListener('click', closeSummary);
     document.getElementById('summaryModal').addEventListener('click', (event) => {

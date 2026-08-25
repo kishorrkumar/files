@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('node:crypto');
+const { Readable } = require('node:stream');
+const { pipeline } = require('node:stream/promises');
 const { initiateOutboundCall, fetchSnapserveAgents } = require('./snapserve');
 const { selectAgentForCourse, courseForAgentName, isLeadEligibleForCall } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
@@ -17,6 +19,44 @@ const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, 'data', 'lea
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'calls.csv');
 
 app.use(express.json());
+app.use('/vendor/wavesurfer', express.static(
+  path.join(__dirname, 'node_modules', 'wavesurfer.js', 'dist'),
+  { index: false, maxAge: '1y', immutable: true }
+));
+
+function isAllowedRecordingUrl(recordingUrl) {
+  try {
+    const url = new URL(recordingUrl);
+    if (url.protocol !== 'https:') return false;
+
+    const configuredHosts = String(process.env.SNAPSERVE_RECORDING_HOSTS || '')
+      .split(',')
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean);
+    const hostname = url.hostname.toLowerCase();
+    return hostname === 'app.snapserve.ai' ||
+      hostname.endsWith('.snapserve.ai') ||
+      hostname.endsWith('.amazonaws.com') ||
+      hostname.endsWith('.blob.core.windows.net') ||
+      configuredHosts.includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function recordingNeedsSnapserveAuth(recordingUrl) {
+  try {
+    const configuredBase = new URL(
+      process.env.SNAPSERVE_BASE_URL ||
+      process.env.SNAPSERVE_API_BASE_URL ||
+      process.env.SNAPSERVE_API_URL ||
+      'https://app.snapserve.ai/api'
+    );
+    return new URL(recordingUrl).hostname === configuredBase.hostname;
+  } catch {
+    return false;
+  }
+}
 
 async function storeOutboundCall(call, lead, agentId, phone) {
   const normalized = callFromPayload(call || {});
@@ -354,6 +394,56 @@ app.get('/calls', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('get-calls error:', err);
     return res.status(500).json({ error: 'Could not read calls.' });
+  }
+});
+
+app.get('/calls/:id/recording', requireAdmin, async (req, res) => {
+  try {
+    const calls = await getCalls(CALLS_PATH);
+    const call = calls.find((item) =>
+      String(item.snapserve_call_id || '') === String(req.params.id) ||
+      String(item.id || '') === String(req.params.id)
+    );
+
+    if (!call?.recording_url) return res.status(404).json({ error: 'Recording not available.' });
+    if (!isAllowedRecordingUrl(call.recording_url)) {
+      return res.status(400).json({ error: 'Recording host is not allowed.' });
+    }
+
+    const headers = { Accept: 'audio/*,application/octet-stream;q=0.9' };
+    if (req.headers.range) headers.Range = req.headers.range;
+    if (recordingNeedsSnapserveAuth(call.recording_url)) {
+      const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const upstream = await fetch(call.recording_url, { headers, signal: controller.signal });
+
+      if (!upstream.ok && upstream.status !== 206) {
+        console.error(`Recording fetch failed for call ${req.params.id}: ${upstream.status}`);
+        return res.status(upstream.status === 404 ? 404 : 502).json({ error: 'Could not load recording.' });
+      }
+
+      res.status(upstream.status);
+      for (const header of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+        const value = upstream.headers.get(header);
+        if (value) res.setHeader(header, value);
+      }
+      res.setHeader('Cache-Control', 'private, max-age=300');
+
+      if (!upstream.body) return res.end();
+      await pipeline(Readable.fromWeb(upstream.body), res);
+      return undefined;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (error) {
+    console.error('recording-proxy error:', error);
+    if (!res.headersSent) return res.status(502).json({ error: 'Could not stream recording.' });
+    return res.end();
   }
 });
 

@@ -12,6 +12,7 @@
     "@neondatabase/serverless": "^0.9.0",
     "dotenv": "^16.4.5",
     "express": "^4.18.4",
+    "wavesurfer.js": "^7.12.11",
     "zod": "^3.25.76"
   }
 }
