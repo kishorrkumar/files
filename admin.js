@@ -212,7 +212,7 @@
             </td>
             <td>
               <button class="call-btn" id="call-btn-${safe(lead.id)}" type="button" data-lead-id="${safe(lead.id)}" data-phone="${safe(lead.phone)}" ${eligibleForCall ? '' : 'disabled'}>
-                ${eligibleForCall ? 'Call with Liza' : 'Not interested'}
+                ${eligibleForCall ? 'Call' : 'Not interested'}
               </button>
             </td>
             <td>${lead.created_at ? new Date(lead.created_at).toLocaleString() : '—'}</td>
@@ -353,7 +353,7 @@
 
         setTimeout(() => {
           callBtn.disabled = false;
-          callBtn.textContent = 'Call with Liza';
+          callBtn.textContent = 'Call';
           loadCalls();
         }, 5000);
       } catch (err) {
