@@ -66,3 +66,4 @@ CREATE TABLE IF NOT EXISTS snapserve_webhooks (
 );
 
 CREATE INDEX IF NOT EXISTS snapserve_webhooks_call_id_idx ON snapserve_webhooks (call_id);
+CREATE INDEX IF NOT EXISTS snapserve_webhooks_created_at_idx ON snapserve_webhooks (created_at DESC);

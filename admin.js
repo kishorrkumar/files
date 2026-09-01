@@ -9,6 +9,11 @@
     const callCourseFilter = document.getElementById('callCourseFilter');
     const callStatusFilter = document.getElementById('callStatusFilter');
     const callResultCount = document.getElementById('callResultCount');
+    const messagesList = document.getElementById('messagesList');
+    const refreshMessagesBtn = document.getElementById('refreshMessagesBtn');
+    const messageSearch = document.getElementById('messageSearch');
+    const messageStatusFilter = document.getElementById('messageStatusFilter');
+    const messageResultCount = document.getElementById('messageResultCount');
 
     const agentSearch = document.getElementById('agentSearch');
     const agentStatusFilter = document.getElementById('agentStatusFilter');
@@ -40,6 +45,7 @@
     let availableLeads = [];
     let availableCalls = [];
     let visibleCalls = [];
+    let availableMessages = [];
     let recordingWaveSurfer = null;
 
     const workspaceSelect = document.getElementById('workspaceSelect');
@@ -62,6 +68,10 @@
       calls: {
         title: 'Call records',
         description: 'Listen to recordings and review transcripts, summaries, and outcomes.'
+      },
+      messages: {
+        title: 'Messages',
+        description: 'See every post-call notification received from SnapServe.'
       }
     };
 
@@ -651,6 +661,57 @@
       }
     }
 
+    function renderMessages() {
+      const query = messageSearch.value.trim().toLowerCase();
+      const messages = availableMessages.filter(message => {
+        const haystack = [message.call_id, message.phone, message.event_type, message.agent_name,
+          message.status, message.summary, message.disposition].join(' ').toLowerCase();
+        return (!query || haystack.includes(query)) &&
+          (!messageStatusFilter.value || message.status === messageStatusFilter.value);
+      });
+      messageResultCount.textContent = messages.length + ' of ' + availableMessages.length + ' messages';
+      if (!messages.length) {
+        messagesList.innerHTML = '<div class="message-empty">No notification updates received yet.</div>';
+        return;
+      }
+      messagesList.innerHTML = messages.map(message => `
+        <article class="message-card">
+          <div class="message-icon" aria-hidden="true">↗</div>
+          <div class="message-content">
+            <div class="message-title-row">
+              <div>
+                <strong>${safe(message.event_type || 'Post-call update')}</strong>
+                <span class="badge">${safe(message.status || 'received')}</span>
+              </div>
+              <time>${message.created_at ? safe(new Date(message.created_at).toLocaleString()) : '—'}</time>
+            </div>
+            <div class="message-meta">
+              ${message.call_id ? `<span>Call <strong>${safe(message.call_id)}</strong></span>` : ''}
+              ${message.phone ? `<span>${safe(message.phone)}</span>` : ''}
+              ${message.agent_name ? `<span>${safe(message.agent_name)}</span>` : ''}
+            </div>
+            ${message.summary ? `<p>${safe(message.summary)}</p>` : ''}
+            ${message.disposition ? `<div class="message-disposition">${safe(message.disposition)}</div>` : ''}
+            <details class="message-payload"><summary>View update payload</summary><pre>${safe(JSON.stringify(message.payload || {}, null, 2))}</pre></details>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    async function loadMessages() {
+      messagesList.innerHTML = '<div class="message-empty">Loading notification updates…</div>';
+      try {
+        const response = await fetch('/messages');
+        if (!response.ok) throw new Error('Unable to load messages');
+        const messages = await response.json();
+        availableMessages = Array.isArray(messages) ? messages : [];
+        populateFilter(messageStatusFilter, uniqueValues(availableMessages, 'status'), 'All statuses');
+        renderMessages();
+      } catch (error) {
+        messagesList.innerHTML = '<div class="message-empty">' + safe(error.message) + '</div>';
+      }
+    }
+
     [agentSearch, agentStatusFilter, agentLanguageFilter, agentTypeFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderAgents);
     });
@@ -660,6 +721,8 @@
     [callSearch, callAgentFilter, callCourseFilter, callStatusFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderCalls);
     });
+    messageSearch.addEventListener('input', renderMessages);
+    messageStatusFilter.addEventListener('change', renderMessages);
     document.getElementById('clearAgentFilters').addEventListener('click', () => {
       agentSearch.value = '';
       agentStatusFilter.value = '';
@@ -716,6 +779,13 @@
     refreshAgentsBtn.addEventListener('click', loadAgents);
     refreshBtn.addEventListener('click', loadLeads);
     refreshCallsBtn.addEventListener('click', loadCalls);
+    refreshMessagesBtn.addEventListener('click', loadMessages);
+    document.getElementById('copyNotifyUrlBtn').addEventListener('click', async (event) => {
+      const notifyUrl = document.getElementById('notifyUrl').textContent.trim();
+      await navigator.clipboard.writeText(notifyUrl);
+      event.currentTarget.textContent = 'Copied';
+      setTimeout(() => { event.currentTarget.textContent = 'Copy URL'; }, 1600);
+    });
 
     const initialWorkspace = location.hash.slice(1) ||
       localStorage.getItem('snapserve_admin_workspace') ||
@@ -724,4 +794,8 @@
     loadAutoCallSetting();
     loadAgents();
     loadCalls();
+    loadMessages();
+    setInterval(() => {
+      if (workspaceSelect.value === 'messages' && !document.hidden) loadMessages();
+    }, 30000);
   

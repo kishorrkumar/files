@@ -35,11 +35,12 @@
 
       <label class="workspace-picker" for="workspaceSelect">
         <span>View</span>
-        <select id="workspaceSelect" aria-controls="analyticsPanel agentsPanel leadsPanel callsPanel">
+        <select id="workspaceSelect" aria-controls="analyticsPanel agentsPanel leadsPanel callsPanel messagesPanel">
           <option value="analytics">Analytics overview</option>
           <option value="agents">Voice agents</option>
           <option value="leads">Lead management</option>
           <option value="calls">Call records</option>
+          <option value="messages">Messages</option>
         </select>
       </label>
     </section>
@@ -92,6 +93,11 @@
           <button class="quick-link" type="button" data-workspace-target="calls">
             <span class="quick-icon" aria-hidden="true">C</span>
             <span><strong>Call records</strong><small>Playback and outcomes</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+          <button class="quick-link" type="button" data-workspace-target="messages">
+            <span class="quick-icon" aria-hidden="true">M</span>
+            <span><strong>Messages</strong><small>Live post-call updates</small></span>
             <span aria-hidden="true">›</span>
           </button>
         </div>
@@ -196,6 +202,38 @@
             <tbody id="callsBody"></tbody>
           </table>
         </div>
+      </article>
+    </section>
+
+    <section id="messagesPanel" class="workspace-panel" data-workspace="messages" hidden>
+      <article class="surface">
+        <div class="surface-head">
+          <div>
+            <p class="eyebrow">Notification inbox</p>
+            <h2>Messages</h2>
+            <p>Post-call updates received from SnapServe appear here automatically.</p>
+          </div>
+          <button id="refreshMessagesBtn" class="button button-primary" type="button">Refresh messages</button>
+        </div>
+
+        <div class="notify-url-card">
+          <div>
+            <span class="notify-label">SnapServe notify URL</span>
+            <code id="notifyUrl">https://files-gppf.onrender.com/api/webhook/snapserve</code>
+          </div>
+          <button id="copyNotifyUrlBtn" class="button button-secondary" type="button">Copy URL</button>
+        </div>
+
+        <div class="filter-bar message-filter-bar" aria-label="Message filters">
+          <label class="filter-field" for="messageSearch"><span>Search</span><input id="messageSearch" class="filter-input" type="search" placeholder="Call ID, phone, event, summary or disposition" /></label>
+          <label class="filter-field" for="messageStatusFilter"><span>Status</span><select id="messageStatusFilter" class="filter-input"><option value="">All statuses</option></select></label>
+        </div>
+
+        <div class="message-headline">
+          <span id="messageResultCount">Loading messages…</span>
+          <span class="live-refresh"><span aria-hidden="true"></span>Updates every 30 seconds</span>
+        </div>
+        <div id="messagesList" class="messages-list" aria-live="polite"></div>
       </article>
     </section>
   </main>

@@ -12,11 +12,13 @@ const { upsertCall, getCalls } = require('./call-storage');
 const { callFromPayload, callsFromResponse } = require('./call-normalization');
 const { callSnapServeTool, closeSnapServeMcp } = require('./snapserve-mcp-client');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
+const { saveMessage, getMessages } = require('./message-storage');
 
 const app = express();
 const port = process.env.PORT || 3000;
 const CSV_PATH = process.env.LEADS_CSV_PATH || path.join(__dirname, 'data', 'leads.csv');
 const CALLS_PATH = process.env.CALLS_CSV_PATH || path.join(__dirname, 'data', 'calls.csv');
+const MESSAGES_PATH = process.env.MESSAGES_PATH || path.join(__dirname, 'data', 'messages.json');
 
 app.use(express.json());
 app.use('/vendor/wavesurfer', express.static(
@@ -135,8 +137,14 @@ const handleSnapserveWebhook = async (req, res) => {
 
   try {
     const result = await upsertCall(CALLS_PATH, callData);
+    const message = await saveMessage(MESSAGES_PATH, body);
     console.log('Saved call record to CSV:', result);
-    return res.status(200).json({ success: true, id: result.id, created_at: result.created_at });
+    return res.status(200).json({
+      success: true,
+      id: result.id,
+      message_id: message.id,
+      created_at: result.created_at
+    });
   } catch (err) {
     console.error('Error saving call record:', err);
     return res.status(500).json({ error: 'Failed to process webhook' });
@@ -146,6 +154,15 @@ const handleSnapserveWebhook = async (req, res) => {
 app.post('/webhook/snapserve', handleSnapserveWebhook);
 app.post('/webhook', handleSnapserveWebhook);
 app.post('/api/webhook/snapserve', handleSnapserveWebhook);
+
+app.get('/messages', requireAdmin, async (req, res) => {
+  try {
+    return res.status(200).json(await getMessages(MESSAGES_PATH));
+  } catch (error) {
+    console.error('get-messages error:', error);
+    return res.status(500).json({ error: 'Could not load notification updates.' });
+  }
+});
 
 const handleLeadSubmit = async (req, res) => {
 

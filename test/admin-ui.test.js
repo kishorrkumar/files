@@ -10,10 +10,16 @@ const javascript = fs.readFileSync(path.join(root, 'admin.js'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 test('organizes every admin feature into the workspace dropdown', () => {
-  for (const workspace of ['analytics', 'agents', 'leads', 'calls']) {
+  for (const workspace of ['analytics', 'agents', 'leads', 'calls', 'messages']) {
     assert.match(html, new RegExp('<option value="' + workspace + '">'));
     assert.match(html, new RegExp('data-workspace="' + workspace + '"'));
   }
+});
+
+test('shows the SnapServe notify URL and notification inbox controls', () => {
+  assert.match(html, /https:\/\/files-gppf\.onrender\.com\/api\/webhook\/snapserve/);
+  assert.match(html, /id="messagesList"/);
+  assert.match(javascript, /fetch\('\/messages'\)/);
 });
 
 test('keeps admin structure, presentation, and behavior separated', () => {
@@ -27,4 +33,3 @@ test('serves modular admin assets behind admin authentication', () => {
   assert.match(server, /app\.get\('\/admin\.css', requireAdminPage/);
   assert.match(server, /app\.get\('\/admin\.js', requireAdminPage/);
 });
-
