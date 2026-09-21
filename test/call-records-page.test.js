@@ -30,15 +30,17 @@ test('uses Name for column header instead of Student', () => {
   assert.doesNotMatch(html, /STUDENT \/ LEAD/);
 });
 
-test('includes table columns for date, call id, name, agent, from, to, call type, status, disposition, duration, cost, summary, recording, transcript', () => {
+test('includes table columns for date, call id, name, agent, from, call type, status, disposition, duration, summary, recording, transcript', () => {
   const expectedCols = [
-    'DATE &amp; TIME', 'CALL ID', 'NAME', 'AGENT', 'FROM', 'TO',
-    'CALL TYPE', 'STATUS', 'DISPOSITION', 'DURATION', 'COST',
+    'DATE &amp; TIME', 'CALL ID', 'NAME', 'AGENT', 'FROM',
+    'CALL TYPE', 'STATUS', 'DISPOSITION', 'DURATION',
     'SUMMARY', 'RECORDING', 'TRANSCRIPT'
   ];
   for (const col of expectedCols) {
     assert.ok(html.includes(`<th scope="col">${col}</th>`), `Missing header column ${col}`);
   }
+  assert.ok(!html.includes('<th scope="col">TO</th>'), 'TO column should be removed');
+  assert.ok(!html.includes('<th scope="col">COST</th>'), 'COST column should be removed');
 });
 
 test('provides waveform player, turn-by-turn chat transcript, and summary modals', () => {

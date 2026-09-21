@@ -271,13 +271,6 @@ class TableView {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
-  static formatCost(call) {
-    const secs = Number(call.duration) || 0;
-    if (secs === 0) return '$0.00';
-    const estimatedCost = (secs / 60) * 0.02;
-    return `$${Math.max(0.01, estimatedCost).toFixed(2)}`;
-  }
-
   static renderSkeleton(container) {
     const rows = Array.from({ length: 4 }).map(() => `
       <tr class="skeleton-row">
@@ -286,11 +279,9 @@ class TableView {
         <td><span class="skeleton-shimmer"></span></td>
         <td><span class="skeleton-shimmer"></span></td>
         <td><span class="skeleton-shimmer"></span></td>
-        <td><span class="skeleton-shimmer"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
-        <td><span class="skeleton-shimmer short"></span></td>
         <td><span class="skeleton-shimmer short"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
@@ -303,9 +294,11 @@ class TableView {
   static renderError(container, message, onRetry) {
     container.innerHTML = `
       <tr>
-        <td colspan="14">
+        <td colspan="12">
           <div class="empty-state-card">
-            <span class="empty-icon" aria-hidden="true">⚠️</span>
+            <span class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </span>
             <div class="empty-title">Unable to Load Call Records</div>
             <div class="empty-desc">${DOM.safe(message)}</div>
             <button id="retryFetchBtn" class="apple-button primary-btn" type="button">Try Again</button>
@@ -325,9 +318,11 @@ class TableView {
 
     container.innerHTML = `
       <tr>
-        <td colspan="14">
+        <td colspan="12">
           <div class="empty-state-card">
-            <span class="empty-icon" aria-hidden="true">📞</span>
+            <span class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </span>
             <div class="empty-title">${DOM.safe(title)}</div>
             <div class="empty-desc">${DOM.safe(desc)}</div>
           </div>
@@ -343,11 +338,9 @@ class TableView {
       const callId = call.snapserve_call_id || call.id || '—';
       const agentName = call.agent_name || call.agent_id || 'Voice Agent';
       const fromPhone = call.phone || '—';
-      const toCourse = call.course || 'Admissions';
       const status = String(call.status || 'completed').toLowerCase();
       const dispKey = DispositionService.detect(call);
       const durationStr = this.formatDuration(call.duration);
-      const costStr = this.formatCost(call);
       const dateStr = this.formatDate(call.created_at || call.ended_at);
 
       return `
@@ -362,32 +355,30 @@ class TableView {
           </td>
           <td>
             <span class="agent-cell-pill">
-              🤖 ${DOM.safe(agentName)}
+              ${DOM.safe(agentName)}
             </span>
           </td>
           <td style="font-family:var(--apple-mono);font-size:0.84rem;">${DOM.safe(fromPhone)}</td>
-          <td><span class="badge">${DOM.safe(toCourse)}</span></td>
           <td>
             <span class="call-type-badge call-type-outbound">Outbound ↗</span>
           </td>
           <td>
             <span class="status-badge ${status === 'completed' ? 'status-completed' : 'status-failed'}">
-              ${status === 'completed' ? '✓ Completed' : '✕ ' + DOM.safe(status)}
+              ${status === 'completed' ? 'Completed' : DOM.safe(status)}
             </span>
           </td>
           <td>
             ${DispositionService.renderPill(dispKey)}
           </td>
           <td style="font-family:var(--apple-mono);font-weight:600;">${DOM.safe(durationStr)}</td>
-          <td style="font-family:var(--apple-mono);color:#248a3d;font-weight:600;">${DOM.safe(costStr)}</td>
           <td>
-            ${call.summary ? `<button class="tbl-btn" type="button" data-action="summary" data-index="${idx}">📝 Summary</button>` : '—'}
+            ${call.summary ? `<button class="tbl-btn" type="button" data-action="summary" data-index="${idx}">Summary</button>` : '—'}
           </td>
           <td>
-            ${call.recording_url ? `<button class="tbl-btn btn-play" type="button" data-action="play" data-index="${idx}">▶ Listen</button>` : '—'}
+            ${call.recording_url ? `<button class="tbl-btn btn-play" type="button" data-action="play" data-index="${idx}">Listen</button>` : '—'}
           </td>
           <td>
-            ${call.transcript ? `<button class="tbl-btn btn-transcript" type="button" data-action="transcript" data-index="${idx}">💬 Transcript</button>` : '—'}
+            ${call.transcript ? `<button class="tbl-btn btn-transcript" type="button" data-action="transcript" data-index="${idx}">Transcript</button>` : '—'}
           </td>
         </tr>
       `;
@@ -597,7 +588,7 @@ class CallRecordsApp {
     this.copyTranscriptBtn.addEventListener('click', () => {
       if (!this.activeTranscript) return;
       navigator.clipboard.writeText(this.activeTranscript).then(() => {
-        this.copyTranscriptBtn.textContent = 'Copied! ✓';
+        this.copyTranscriptBtn.textContent = 'Copied';
         setTimeout(() => { this.copyTranscriptBtn.textContent = 'Copy transcript'; }, 1800);
       });
     });
@@ -711,7 +702,7 @@ class CallRecordsApp {
 
         const isAgent = speaker.toLowerCase().includes('agent') || speaker.toLowerCase().includes('assistant') || speaker.toLowerCase().includes('liza');
         const bubbleClass = isAgent ? 'agent-bubble' : 'user-bubble';
-        const avatar = isAgent ? '🤖' : '👤';
+        const avatar = isAgent ? 'A' : 'C';
 
         return `
           <div class="chat-bubble ${bubbleClass}">
@@ -734,7 +725,6 @@ class CallRecordsApp {
     DOM.byId('summaryModalTitle').textContent = `AI Summary — ${name}`;
     DOM.byId('summaryModalMeta').textContent = [
       call.agent_name ? 'Agent: ' + call.agent_name : '',
-      call.course ? 'Campaign: ' + call.course : '',
       call.phone ? 'Phone: ' + call.phone : ''
     ].filter(Boolean).join(' · ');
 
@@ -760,19 +750,17 @@ class CallRecordsApp {
       return;
     }
 
-    const headers = ['Date', 'Call ID', 'Name', 'Agent', 'From', 'To', 'Call Type', 'Status', 'Disposition', 'Duration (s)', 'Cost'];
+    const headers = ['Date', 'Call ID', 'Name', 'Agent', 'From', 'Call Type', 'Status', 'Disposition', 'Duration (s)'];
     const rows = this.visibleCalls.map(c => [
       TableView.formatDate(c.created_at || c.ended_at),
       c.snapserve_call_id || c.id || '',
       c.student_name || 'Customer',
       c.agent_name || c.agent_id || '',
       c.phone || '',
-      c.course || '',
       'Outbound',
       c.status || 'completed',
       DispositionService.detect(c),
-      c.duration || 0,
-      TableView.formatCost(c)
+      c.duration || 0
     ]);
 
     const csvContent = [

@@ -158,11 +158,11 @@
           </select>
 
           <select id="callDateRangeFilter" class="toolbar-select date-range-select" aria-label="Date Range">
-            <option value="all">📅 Date Range: All Time</option>
-            <option value="today">📅 Today</option>
-            <option value="yesterday">📅 Yesterday</option>
-            <option value="7days">📅 Last 7 Days</option>
-            <option value="30days">📅 Last 30 Days</option>
+            <option value="all">Date Range: All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="7days">Last 7 Days</option>
+            <option value="30days">Last 30 Days</option>
           </select>
 
           <select id="callSortFilter" class="toolbar-select sort-select" aria-label="Sort order">
@@ -196,12 +196,10 @@
               <th scope="col">NAME</th>
               <th scope="col">AGENT</th>
               <th scope="col">FROM</th>
-              <th scope="col">TO</th>
               <th scope="col">CALL TYPE</th>
               <th scope="col">STATUS</th>
               <th scope="col">DISPOSITION</th>
               <th scope="col">DURATION</th>
-              <th scope="col">COST</th>
               <th scope="col">SUMMARY</th>
               <th scope="col">RECORDING</th>
               <th scope="col">TRANSCRIPT</th>
@@ -247,7 +245,10 @@
           </div>
 
           <a id="downloadAudioLink" class="apple-button secondary-btn download-btn" href="#" download target="_blank" rel="noopener">
-            📥 Download
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download
           </a>
         </div>
       </div>
