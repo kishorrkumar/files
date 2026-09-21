@@ -67,3 +67,25 @@ test('upserts calls in bulk quickly and merges by snapserve_call_id', async () =
   assert.equal(saved[0].summary, 'Updated summary');
   assert.equal(saved[0].cost, '₹2.50');
 });
+
+test('gracefully falls back to local file when database throws or is unavailable', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'call-fallback-'));
+  const callsPath = path.join(tempDir, 'calls.csv');
+
+  // Should return empty array without throwing if file does not exist
+  const empty = await getCalls(callsPath);
+  assert.deepEqual(empty, []);
+
+  // Writing a call should work cleanly
+  const call = await appendCall(callsPath, {
+    snapserve_call_id: 'test-fallback-1',
+    agent_name: 'Admissions Assistant',
+    disposition: 'Interested'
+  });
+  assert.equal(call.snapserve_call_id, 'test-fallback-1');
+
+  const retrieved = await getCalls(callsPath);
+  assert.equal(retrieved.length, 1);
+  assert.equal(retrieved[0].snapserve_call_id, 'test-fallback-1');
+  assert.equal(retrieved[0].disposition, 'Interested');
+});

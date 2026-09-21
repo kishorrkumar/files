@@ -22,44 +22,59 @@ function database() {
 
 async function ensureDatabaseSchema(sql) {
   if (databaseSchemaReady) return;
-  await sql`
-    CREATE TABLE IF NOT EXISTS call_records (
-      id BIGSERIAL PRIMARY KEY,
-      snapserve_call_id TEXT,
-      agent_id TEXT,
-      agent_name TEXT,
-      phone TEXT,
-      from_number TEXT,
-      to_number TEXT,
-      call_type TEXT,
-      disposition TEXT,
-      cost TEXT,
-      student_name TEXT,
-      course TEXT,
-      duration INTEGER NOT NULL DEFAULT 0,
-      summary TEXT,
-      success_evaluation TEXT,
-      recording_url TEXT,
-      transcript TEXT,
-      status TEXT NOT NULL DEFAULT 'unknown',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      ended_at TIMESTAMPTZ
-    )
-  `;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS student_name TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS course TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS from_number TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS to_number TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS call_type TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS disposition TEXT`;
-  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS cost TEXT`;
-  await sql`
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS call_records (
+        id BIGSERIAL PRIMARY KEY,
+        snapserve_call_id TEXT,
+        agent_id TEXT,
+        agent_name TEXT,
+        phone TEXT,
+        from_number TEXT,
+        to_number TEXT,
+        call_type TEXT,
+        disposition TEXT,
+        cost TEXT,
+        student_name TEXT,
+        course TEXT,
+        duration INTEGER NOT NULL DEFAULT 0,
+        summary TEXT,
+        success_evaluation TEXT,
+        recording_url TEXT,
+        transcript TEXT,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        ended_at TIMESTAMPTZ
+      )
+    `;
+  } catch (err) {
+    console.warn('Notice creating call_records table:', err.message);
+  }
+
+  const safeAlter = async (queryPromise) => {
+    try {
+      await queryPromise;
+    } catch (e) {
+      // column or index already exists or table busy
+    }
+  };
+
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS student_name TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS course TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS from_number TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS to_number TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS call_type TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS disposition TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS cost TEXT`);
+
+  await safeAlter(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS call_records_snapserve_id_idx
     ON call_records (snapserve_call_id)
     WHERE snapserve_call_id IS NOT NULL AND snapserve_call_id <> ''
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS call_records_phone_idx ON call_records (phone)`;
-  await sql`CREATE INDEX IF NOT EXISTS call_records_created_at_idx ON call_records (created_at DESC)`;
+  `);
+  await safeAlter(sql`CREATE INDEX IF NOT EXISTS call_records_phone_idx ON call_records (phone)`);
+  await safeAlter(sql`CREATE INDEX IF NOT EXISTS call_records_created_at_idx ON call_records (created_at DESC)`);
+
   databaseSchemaReady = true;
 }
 
@@ -92,10 +107,7 @@ function normalizedDatabaseCall(row) {
 async function getDatabaseCalls(sql) {
   await ensureDatabaseSchema(sql);
   const rows = await sql`
-    SELECT id, snapserve_call_id, agent_id, agent_name, phone, from_number, to_number,
-           call_type, disposition, cost, student_name, course, duration,
-           summary, success_evaluation, recording_url, transcript, status,
-           created_at, ended_at
+    SELECT *
     FROM call_records
     ORDER BY created_at DESC
     LIMIT 1000
@@ -213,50 +225,54 @@ async function writeCalls(callsPath, calls) {
 }
 
 async function getCalls(callsPath) {
+  const resolvedPath = resolveCallsPath(callsPath);
   const sql = database();
   if (sql) {
     try {
       return await getDatabaseCalls(sql);
     } catch (error) {
-      console.error('Database call read failed:', error.message);
-      throw error;
+      console.warn('Database call read failed, falling back to local storage:', error.message);
     }
   }
-  const resolvedPath = resolveCallsPath(callsPath);
   if (!fs.existsSync(resolvedPath)) return [];
 
-  const content = await fsPromises.readFile(resolvedPath, 'utf8');
-  const lines = content.split(/\r?\n/).filter(line => line.trim());
-  if (lines.length <= 1) return [];
+  try {
+    const content = await fsPromises.readFile(resolvedPath, 'utf8');
+    const lines = content.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length <= 1) return [];
 
-  const headers = parseCsvLine(lines[0]);
-  return lines.slice(1).map((line, rowIndex) => {
-    const values = parseCsvLine(line);
-    const raw = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
-    const localId = Number(raw.id);
-    return {
-      id: Number.isFinite(localId) && localId > 0 ? localId : rowIndex + 1,
-      snapserve_call_id: raw.snapserve_call_id || raw.call_id || '',
-      agent_id: raw.agent_id || '',
-      agent_name: raw.agent_name || '',
-      phone: raw.phone || raw.to_number || raw.from_number || '',
-      from_number: raw.from_number || '',
-      to_number: raw.to_number || raw.phone || '',
-      call_type: raw.call_type || 'Live Call',
-      disposition: raw.disposition || '',
-      cost: raw.cost || '',
-      student_name: raw.student_name || '',
-      course: raw.course || '',
-      duration: Number(raw.duration) || 0,
-      summary: raw.summary || '',
-      success_evaluation: raw.success_evaluation || '',
-      recording_url: raw.recording_url || '',
-      transcript: raw.transcript || '',
-      status: raw.status || 'unknown',
-      created_at: raw.created_at || '',
-      ended_at: raw.ended_at || ''
-    };
-  });
+    const headers = parseCsvLine(lines[0]);
+    return lines.slice(1).map((line, rowIndex) => {
+      const values = parseCsvLine(line);
+      const raw = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+      const localId = Number(raw.id);
+      return {
+        id: Number.isFinite(localId) && localId > 0 ? localId : rowIndex + 1,
+        snapserve_call_id: raw.snapserve_call_id || raw.call_id || '',
+        agent_id: raw.agent_id || '',
+        agent_name: raw.agent_name || '',
+        phone: raw.phone || raw.to_number || raw.from_number || '',
+        from_number: raw.from_number || '',
+        to_number: raw.to_number || raw.phone || '',
+        call_type: raw.call_type || 'Live Call',
+        disposition: raw.disposition || '',
+        cost: raw.cost || '',
+        student_name: raw.student_name || '',
+        course: raw.course || '',
+        duration: Number(raw.duration) || 0,
+        summary: raw.summary || '',
+        success_evaluation: raw.success_evaluation || '',
+        recording_url: raw.recording_url || '',
+        transcript: raw.transcript || '',
+        status: raw.status || 'unknown',
+        created_at: raw.created_at || '',
+        ended_at: raw.ended_at || ''
+      };
+    });
+  } catch (fileErr) {
+    console.warn('Failed reading local calls file:', fileErr.message);
+    return [];
+  }
 }
 
 function normalizedPhone(phone) {
@@ -279,8 +295,7 @@ async function upsertCall(callsPath, callData) {
     try {
       return await upsertDatabaseCall(sql, callData);
     } catch (error) {
-      console.error('Database call upsert failed:', error.message);
-      throw error;
+      console.warn('Database call upsert failed, falling back to local storage:', error.message);
     }
   }
   const resolvedPath = resolveCallsPath(callsPath);
@@ -339,12 +354,20 @@ async function upsertCallsBulk(callsPath, callsArray) {
   if (!Array.isArray(callsArray) || callsArray.length === 0) return [];
   const sql = database();
   if (sql) {
+    let savedAny = false;
     const results = [];
     for (const callData of callsArray) {
-      const saved = await upsertDatabaseCall(sql, callData).catch(() => null);
-      if (saved) results.push(saved);
+      try {
+        const saved = await upsertDatabaseCall(sql, callData);
+        if (saved) {
+          results.push(saved);
+          savedAny = true;
+        }
+      } catch (err) {
+        console.warn('Individual db upsert notice:', err.message);
+      }
     }
-    return results;
+    if (savedAny) return results;
   }
 
   const resolvedPath = resolveCallsPath(callsPath);

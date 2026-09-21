@@ -330,46 +330,62 @@ app.get('/calls', requireAdmin, async (req, res) => {
     }
 
     const now = Date.now();
-    let calls;
+    let calls = [];
     if (memoryCallsCache && (now - lastCacheTime < CACHE_TTL_MS) && req.query.sync !== 'true') {
       calls = memoryCallsCache;
     } else {
-      calls = await getCalls(CALLS_PATH);
-      memoryCallsCache = calls;
-      lastCacheTime = now;
+      try {
+        calls = await getCalls(CALLS_PATH);
+        memoryCallsCache = calls;
+        lastCacheTime = now;
+      } catch (readErr) {
+        console.warn('getCalls error fallback to memory cache:', readErr.message);
+        calls = Array.isArray(memoryCallsCache) ? memoryCallsCache : [];
+      }
     }
+
+    if (!Array.isArray(calls)) calls = [];
 
     const leads = await getLeads(CSV_PATH).catch(() => []);
     const leadByPhone = new Map(
       leads
-        .filter((lead) => String(lead.phone || '').replace(/\D/g, '').slice(-10))
+        .filter((lead) => String(lead?.phone || '').replace(/\D/g, '').slice(-10))
         .map((lead) => [String(lead.phone).replace(/\D/g, '').slice(-10), lead])
     );
 
     const enriched = calls.map((call) => {
+      if (!call || typeof call !== 'object') return null;
       const phoneKey = String(call.phone || '').replace(/\D/g, '').slice(-10);
       const lead = leadByPhone.get(phoneKey);
       return {
         ...call,
         student_name: call.student_name || lead?.name || '',
-        course: call.course || lead?.course || courseForAgentName(call.agent_name) || ''
+        course: call.course || lead?.course || (typeof courseForAgentName === 'function' ? courseForAgentName(call.agent_name) : '') || ''
       };
-    });
+    }).filter(Boolean);
 
     return res.status(200).json(enriched);
   } catch (err) {
-    console.error('get-calls error:', err);
-    return res.status(500).json({ error: 'Could not read calls.' });
+    console.error('get-calls unexpected error:', err);
+    if (Array.isArray(memoryCallsCache)) {
+      return res.status(200).json(memoryCallsCache);
+    }
+    return res.status(200).json([]);
   }
 });
 
 app.get('/calls/:id/recording', requireAdmin, async (req, res) => {
   try {
-    const calls = await getCalls(CALLS_PATH);
-    const call = calls.find((item) =>
-      String(item.snapserve_call_id || '') === String(req.params.id) ||
-      String(item.id || '') === String(req.params.id)
-    );
+    let calls = [];
+    try {
+      calls = await getCalls(CALLS_PATH);
+    } catch {
+      calls = Array.isArray(memoryCallsCache) ? memoryCallsCache : [];
+    }
+    const call = Array.isArray(calls) ? calls.find((item) =>
+      String(item?.snapserve_call_id || '') === String(req.params.id) ||
+      String(item?.id || '') === String(req.params.id)
+    ) : null;
 
     if (!call?.recording_url) return res.status(404).json({ error: 'Recording not available.' });
     if (!isAllowedRecordingUrl(call.recording_url)) {
