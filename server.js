@@ -164,95 +164,6 @@ app.get('/messages', requireAdmin, async (req, res) => {
   }
 });
 
-const handleLeadSubmit = async (req, res) => {
-
-  const { name, email, phone, course, agent } = req.body || {};
-  const courseNames = {
-    'UI/UX Design': 'UI/UX Design Mastery',
-    'UI/UX Design Mastery': 'UI/UX Design Mastery',
-    'Full-Stack Development': 'Full-Stack Web Development',
-    'Full-Stack Web Development': 'Full-Stack Web Development',
-    'Filmmaking & Video Editing': 'Filmmaking & Video Editing',
-    'SnapServe Voice AI Hackathon': 'SnapServe Voice AI Hackathon'
-  };
-  const normalizedCourse = courseNames[course];
-
-  if (!normalizedCourse) {
-    return res.status(400).json({ error: 'Please select a valid campaign' });
-  }
-
-  if (!name || typeof name !== 'string' || name.trim().length < 2) {
-    return res.status(400).json({ error: 'A valid name is required' });
-  }
-
-  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!email || !emailRe.test(email)) {
-    return res.status(400).json({ error: 'A valid email is required' });
-  }
-
-  const phoneDigits = (phone || '').replace(/[^0-9]/g, '');
-  if (phoneDigits.length < 8) {
-    return res.status(400).json({ error: 'A valid phone number is required' });
-  }
-  if (normalizedCourse === 'SnapServe Voice AI Hackathon') {
-    if (!req.body?.interest) return res.status(400).json({ error: 'Please select your level of interest' });
-    if (!req.body?.attendance && !req.body?.attend) {
-      return res.status(400).json({ error: 'Please select whether you can attend' });
-    }
-  }
-
-  try {
-    const eligibleForCall = isLeadEligibleForCall(normalizedCourse, req.body?.interest);
-    const courseAgent = agent || !eligibleForCall ? null : await selectAgentForCourse(normalizedCourse);
-    const assignedAgentId = eligibleForCall ? (agent || courseAgent?.id || null) : null;
-    const result = await appendLead(CSV_PATH, {
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      course: normalizedCourse,
-      agent: assignedAgentId,
-      interest: req.body?.interest || null,
-      attendance: req.body?.attendance || req.body?.attend || null,
-      source: req.body?.source || 'landing_page_form'
-    });
-
-    try {
-      const autoCallEnabled = await getAutoCallEnabled();
-      const fallbackAgentId = normalizedCourse === 'SnapServe Voice AI Hackathon'
-        ? ''
-        : process.env.SNAPSERVE_AGENT_ID || '';
-      const agentId = assignedAgentId || fallbackAgentId;
-      // The Hackathon landing page uses SnapServe's official lead-capture widget.
-      // Keeping that campaign out of this legacy auto-call path prevents duplicate calls.
-      if (autoCallEnabled && eligibleForCall && agentId && normalizedCourse !== 'SnapServe Voice AI Hackathon') {
-        const call = await initiateOutboundCall({
-          phone,
-          agentId,
-          apiKey: process.env.SNAPSERVE_API_KEY
-        });
-        await storeOutboundCall(call, { name: name.trim(), course: normalizedCourse }, agentId, phone);
-        console.log('Automatic Snapserve call initiated:', call);
-      }
-    } catch (callErr) {
-      console.error('Automatic Snapserve call initiation failed:', callErr);
-    }
-
-    return res.status(200).json({
-      success: true,
-      id: result.id,
-      created_at: result.created_at
-    });
-  } catch (err) {
-    console.error('submit-lead error:', err);
-    return res.status(503).json({
-      error: 'The admissions database is temporarily unavailable. Please try again shortly.'
-    });
-  }
-};
-
-app.post('/submit-lead', handleLeadSubmit);
-app.post('/api/submit-lead', handleLeadSubmit);
-
 app.get('/agents', requireAdmin, async (req, res) => {
   try {
     const agents = await fetchSnapserveAgents();
@@ -520,7 +431,7 @@ app.get('/call-records.js', requireAdminPage, (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.redirect('/admin');
 });
 
 app.listen(port, () => {
