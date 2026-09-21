@@ -495,12 +495,28 @@ app.get('/admin', requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+app.get('/call-records', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'call-records.html'));
+});
+
+app.get('/admin/calls', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'call-records.html'));
+});
+
 app.get('/admin.css', requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.css'));
 });
 
+app.get('/call-records.css', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'call-records.css'));
+});
+
 app.get('/admin.js', requireAdminPage, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.js'));
+});
+
+app.get('/call-records.js', requireAdminPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'call-records.js'));
 });
 
 app.get('/', (req, res) => {

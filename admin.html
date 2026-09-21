@@ -18,6 +18,11 @@
         </span>
       </a>
 
+      <nav class="nav-links" aria-label="Main navigation">
+        <a class="nav-link active" href="/admin" aria-current="page">Dashboard & Leads</a>
+        <a class="nav-link" href="/call-records">Call Records</a>
+      </nav>
+
       <div class="app-actions">
         <span class="live-status"><span aria-hidden="true"></span>Live operations</span>
         <button id="logoutBtn" class="button button-secondary" type="button">Sign out</button>
@@ -198,7 +203,7 @@
 
         <div class="table-wrap">
           <table id="callsTable">
-            <thead><tr><th>ID</th><th>Student</th><th>Agent</th><th>Course</th><th>Phone</th><th>Duration</th><th>Status</th><th>Summary</th><th>Success</th><th>Recording</th><th>Transcript</th><th>Date</th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Agent</th><th>Course</th><th>Phone</th><th>Duration</th><th>Status</th><th>Summary</th><th>Success</th><th>Recording</th><th>Transcript</th><th>Date</th></tr></thead>
             <tbody id="callsBody"></tbody>
           </table>
         </div>
