@@ -263,62 +263,88 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
   }
 });
 
+let isCallSyncRunning = false;
+
+async function syncRemoteCalls(apiKey) {
+  if (isCallSyncRunning) return;
+  isCallSyncRunning = true;
+  try {
+    let remotePayload;
+    if (String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true') {
+      const mcpPromise = callSnapServeTool('snapserve_list_calls', { limit: 500 });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MCP sync timeout')), 3500));
+      remotePayload = await Promise.race([mcpPromise, timeoutPromise]);
+    } else {
+      const snapserveBaseUrl = process.env.SNAPSERVE_BASE_URL ||
+        process.env.SNAPSERVE_API_BASE_URL || process.env.SNAPSERVE_API_URL ||
+        'https://app.snapserve.ai/api';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      try {
+        const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls?limit=500`, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
+        if (response.ok) {
+          remotePayload = await response.json();
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    if (remotePayload) {
+      const snapserveCalls = callsFromResponse(remotePayload);
+      for (const call of snapserveCalls) {
+        await upsertCall(CALLS_PATH, callFromPayload(call)).catch(() => {});
+      }
+    }
+  } catch (syncErr) {
+    console.warn('SnapServe remote call sync notice:', syncErr.message);
+  } finally {
+    isCallSyncRunning = false;
+  }
+}
+
 app.get('/calls', requireAdmin, async (req, res) => {
   try {
     let calls = await getCalls(CALLS_PATH);
 
     const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
     if (apiKey) {
-      try {
-        let remotePayload;
-        if (String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true') {
-          remotePayload = await callSnapServeTool('snapserve_list_calls', { limit: 500 });
-        } else {
-          const snapserveBaseUrl = process.env.SNAPSERVE_BASE_URL ||
-            process.env.SNAPSERVE_API_BASE_URL || process.env.SNAPSERVE_API_URL ||
-            'https://app.snapserve.ai/api';
-          const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls?limit=500`, {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Accept': 'application/json'
-            }
-          });
-          if (!response.ok) throw new Error(`SnapServe calls API returned ${response.status}`);
-          remotePayload = await response.json();
-        }
-        {
-          const snapserveCalls = callsFromResponse(remotePayload);
-          for (const call of snapserveCalls) {
-            await upsertCall(CALLS_PATH, callFromPayload(call));
-          }
-          calls = await getCalls(CALLS_PATH);
-        }
-      } catch (syncErr) {
-        console.error('Failed to sync calls from Snapserve API:', syncErr);
+      // Sync in background or fast-race so the user is never blocked
+      if (req.query.sync === 'true' || calls.length === 0) {
+        await Promise.race([
+          syncRemoteCalls(apiKey),
+          new Promise((resolve) => setTimeout(resolve, 3000))
+        ]);
+        calls = await getCalls(CALLS_PATH);
+      } else {
+        syncRemoteCalls(apiKey).catch(() => {});
       }
     }
 
-    const leads = await getLeads(CSV_PATH);
+    const leads = await getLeads(CSV_PATH).catch(() => []);
     const leadByPhone = new Map(
       leads
         .filter((lead) => String(lead.phone || '').replace(/\D/g, '').slice(-10))
         .map((lead) => [String(lead.phone).replace(/\D/g, '').slice(-10), lead])
     );
-    calls = await Promise.all(calls.map(async (call) => {
+
+    const enriched = calls.map((call) => {
       const phoneKey = String(call.phone || '').replace(/\D/g, '').slice(-10);
       const lead = leadByPhone.get(phoneKey);
-      const enriched = {
+      return {
         ...call,
         student_name: call.student_name || lead?.name || '',
         course: call.course || lead?.course || courseForAgentName(call.agent_name) || ''
       };
-      if ((!call.student_name && enriched.student_name) || (!call.course && enriched.course)) {
-        return upsertCall(CALLS_PATH, enriched);
-      }
-      return enriched;
-    }));
+    });
 
-    return res.status(200).json(calls);
+    return res.status(200).json(enriched);
   } catch (err) {
     console.error('get-calls error:', err);
     return res.status(500).json({ error: 'Could not read calls.' });
