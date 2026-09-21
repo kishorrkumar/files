@@ -5,7 +5,8 @@ const { neon } = require('@neondatabase/serverless');
 const { databaseUrl } = require('./database-config');
 
 const HEADERS = [
-  'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'student_name', 'course', 'duration',
+  'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'from_number', 'to_number',
+  'call_type', 'disposition', 'cost', 'student_name', 'course', 'duration',
   'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at', 'ended_at'
 ];
 
@@ -28,6 +29,11 @@ async function ensureDatabaseSchema(sql) {
       agent_id TEXT,
       agent_name TEXT,
       phone TEXT,
+      from_number TEXT,
+      to_number TEXT,
+      call_type TEXT,
+      disposition TEXT,
+      cost TEXT,
       student_name TEXT,
       course TEXT,
       duration INTEGER NOT NULL DEFAULT 0,
@@ -42,6 +48,11 @@ async function ensureDatabaseSchema(sql) {
   `;
   await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS student_name TEXT`;
   await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS course TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS from_number TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS to_number TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS call_type TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS disposition TEXT`;
+  await sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS cost TEXT`;
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS call_records_snapserve_id_idx
     ON call_records (snapserve_call_id)
@@ -59,7 +70,12 @@ function normalizedDatabaseCall(row) {
     snapserve_call_id: row.snapserve_call_id || '',
     agent_id: row.agent_id || '',
     agent_name: row.agent_name || '',
-    phone: row.phone || '',
+    phone: row.phone || row.to_number || row.from_number || '',
+    from_number: row.from_number || '',
+    to_number: row.to_number || row.phone || '',
+    call_type: row.call_type || 'Live Call',
+    disposition: row.disposition || '',
+    cost: row.cost || '',
     student_name: row.student_name || '',
     course: row.course || '',
     duration: Number(row.duration) || 0,
@@ -76,7 +92,8 @@ function normalizedDatabaseCall(row) {
 async function getDatabaseCalls(sql) {
   await ensureDatabaseSchema(sql);
   const rows = await sql`
-    SELECT id, snapserve_call_id, agent_id, agent_name, phone, student_name, course, duration,
+    SELECT id, snapserve_call_id, agent_id, agent_name, phone, from_number, to_number,
+           call_type, disposition, cost, student_name, course, duration,
            summary, success_evaluation, recording_url, transcript, status,
            created_at, ended_at
     FROM call_records
@@ -101,6 +118,11 @@ async function upsertDatabaseCall(sql, callData) {
         agent_id = ${merged.agent_id || null},
         agent_name = ${merged.agent_name || null},
         phone = ${merged.phone || null},
+        from_number = ${merged.from_number || null},
+        to_number = ${merged.to_number || null},
+        call_type = ${merged.call_type || null},
+        disposition = ${merged.disposition || null},
+        cost = ${merged.cost || null},
         student_name = ${merged.student_name || null},
         course = ${merged.course || null},
         duration = ${Number(merged.duration) || 0},
@@ -119,11 +141,14 @@ async function upsertDatabaseCall(sql, callData) {
 
   const rows = await sql`
     INSERT INTO call_records (
-      snapserve_call_id, agent_id, agent_name, phone, student_name, course, duration, summary,
+      snapserve_call_id, agent_id, agent_name, phone, from_number, to_number,
+      call_type, disposition, cost, student_name, course, duration, summary,
       success_evaluation, recording_url, transcript, status, created_at, ended_at
     ) VALUES (
       ${snapserveId || null}, ${merged.agent_id || null}, ${merged.agent_name || null},
-      ${merged.phone || null}, ${merged.student_name || null}, ${merged.course || null},
+      ${merged.phone || null}, ${merged.from_number || null}, ${merged.to_number || null},
+      ${merged.call_type || 'Live Call'}, ${merged.disposition || null}, ${merged.cost || null},
+      ${merged.student_name || null}, ${merged.course || null},
       ${Number(merged.duration) || 0}, ${merged.summary || null},
       ${merged.success_evaluation || null}, ${merged.recording_url || null},
       ${merged.transcript || null}, ${merged.status || 'unknown'},
@@ -214,7 +239,12 @@ async function getCalls(callsPath) {
       snapserve_call_id: raw.snapserve_call_id || raw.call_id || '',
       agent_id: raw.agent_id || '',
       agent_name: raw.agent_name || '',
-      phone: raw.phone || '',
+      phone: raw.phone || raw.to_number || raw.from_number || '',
+      from_number: raw.from_number || '',
+      to_number: raw.to_number || raw.phone || '',
+      call_type: raw.call_type || 'Live Call',
+      disposition: raw.disposition || '',
+      cost: raw.cost || '',
       student_name: raw.student_name || '',
       course: raw.course || '',
       duration: Number(raw.duration) || 0,

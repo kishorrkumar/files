@@ -169,20 +169,29 @@ class CallFilterEngine {
     const { query, status, agent, disposition, dateRange, sort } = criteria;
 
     let result = calls.filter(call => {
-      const name = call.student_name || 'Customer';
+      const callId = call.snapserve_call_id || call.id || '';
       const agentName = call.agent_name || call.agent_id || '';
-      const phone = call.phone || '';
-      const id = call.snapserve_call_id || call.id || '';
-      const summary = call.summary || '';
-      const dispKey = DispositionService.detect(call);
+      const fromPhone = call.from_number || '';
+      const toPhone = call.to_number || call.phone || '';
+      const callType = call.call_type || '';
+      const callStatus = call.status || '';
+      const callDisp = call.disposition || '';
+      const studentName = call.student_name || '';
 
-      const haystack = [name, agentName, phone, id, summary].join(' ').toLowerCase();
+      const haystack = [callId, agentName, fromPhone, toPhone, callType, callStatus, callDisp, studentName].join(' ').toLowerCase();
 
       const searchMatch = !query || haystack.includes(query.toLowerCase());
-      const statusMatch = !status || String(call.status || '').toLowerCase() === status.toLowerCase();
+      const statusMatch = !status || String(callStatus).toLowerCase() === status.toLowerCase();
       const agentMatch = !agent || agentName.toLowerCase() === agent.toLowerCase();
-      const dispMatch = !disposition || dispKey === disposition.toLowerCase() ||
-        (disposition.toLowerCase() === 'follow_up' && dispKey === 'followup');
+      
+      let dispMatch = true;
+      if (disposition) {
+        const normFilter = disposition.toLowerCase().replace(/[\s_]+/g, '');
+        const normCall = callDisp.toLowerCase().replace(/[\s_]+/g, '');
+        dispMatch = normCall.includes(normFilter) || normFilter.includes(normCall) ||
+          (disposition === 'call_back_requested' && (normCall.includes('callback') || normCall.includes('call back')));
+      }
+
       const dateMatch = this.isWithinDateRange(call.created_at || call.ended_at, dateRange);
 
       return searchMatch && statusMatch && agentMatch && dispMatch && dateMatch;
@@ -205,74 +214,76 @@ class CallFilterEngine {
 }
 
 // ============================================================================
-// 5. Metrics View (Apple Health / Watch Inspired Widgets)
+// 5. Metrics View (5 Metrics Cards Matching Screenshot)
 // ============================================================================
 class MetricsView {
   static update(calls) {
     const total = calls.length;
-    let countInterested = 0;
-    let countFollowup = 0;
-    let countNotInterested = 0;
-    let countNoAnswer = 0;
-    let countConverted = 0;
+    let completed = 0;
+    let voicemail = 0;
+    let failed = 0;
+    let totalDuration = 0;
+    let durationCount = 0;
 
     calls.forEach(call => {
-      const disp = DispositionService.detect(call);
-      if (disp === 'interested') countInterested++;
-      else if (disp === 'followup') countFollowup++;
-      else if (disp === 'notinterested') countNotInterested++;
-      else if (disp === 'noanswer') countNoAnswer++;
-      else if (disp === 'converted') countConverted++;
+      const status = String(call.status || '').toLowerCase();
+      const disp = String(call.disposition || '').toLowerCase();
+      const dur = Number(call.duration) || 0;
+
+      if (status === 'completed') {
+        completed++;
+      } else if (status === 'failed' || status === 'error') {
+        failed++;
+      }
+
+      if (status === 'no-pickup' || status === 'no_answer' || disp.includes('no_answer') || disp.includes('voicemail') || status.includes('voicemail')) {
+        voicemail++;
+      }
+
+      if (dur > 0) {
+        totalDuration += dur;
+        durationCount++;
+      }
     });
 
-    DOM.byId('dispCountTotal').textContent = total;
-    DOM.byId('dispSubTotal').textContent = total === 1 ? '1 logged call' : `${total} logged calls`;
+    const avgDur = durationCount > 0 ? Math.round(totalDuration / durationCount) : 0;
 
-    DOM.byId('dispCountInterested').textContent = countInterested;
-    DOM.byId('dispPctInterested').textContent = total ? `${Math.round((countInterested / total) * 100)}% of total` : '0%';
+    const elTotal = DOM.byId('dispCountTotal');
+    const elCompleted = DOM.byId('dispCountCompleted');
+    const elVoicemail = DOM.byId('dispCountVoicemail');
+    const elFailed = DOM.byId('dispCountFailed');
+    const elAvgDur = DOM.byId('dispAvgDuration');
 
-    DOM.byId('dispCountFollowup').textContent = countFollowup;
-    DOM.byId('dispPctFollowup').textContent = total ? `${Math.round((countFollowup / total) * 100)}% of total` : '0%';
-
-    DOM.byId('dispCountNotInterested').textContent = countNotInterested;
-    DOM.byId('dispPctNotInterested').textContent = total ? `${Math.round((countNotInterested / total) * 100)}% of total` : '0%';
-
-    DOM.byId('dispCountNoAnswer').textContent = countNoAnswer;
-    DOM.byId('dispPctNoAnswer').textContent = total ? `${Math.round((countNoAnswer / total) * 100)}% of total` : '0%';
-
-    DOM.byId('dispCountConverted').textContent = countConverted;
-    DOM.byId('dispPctConverted').textContent = total ? `${Math.round((countConverted / total) * 100)}% of total` : '0%';
+    if (elTotal) elTotal.textContent = total;
+    if (elCompleted) elCompleted.textContent = completed;
+    if (elVoicemail) elVoicemail.textContent = voicemail;
+    if (elFailed) elFailed.textContent = failed;
+    if (elAvgDur) elAvgDur.textContent = `${avgDur}s`;
   }
 }
 
 // ============================================================================
-// 6. Table View (Apple High-Performance Render with Skeleton & Error State)
+// 6. Table View (10 Columns Matching Screenshot)
 // ============================================================================
 class TableView {
-  static formatDate(value) {
-    if (!value) return '—';
+  static formatDateParts(value) {
+    if (!value) return { date: '—', time: '—' };
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '—';
-    return date.toLocaleString('en-US', {
+    if (Number.isNaN(date.getTime())) return { date: '—', time: '—' };
+
+    const dateStr = date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+      year: 'numeric'
     });
-  }
-
-  static formatDuration(seconds) {
-    const secs = Number(seconds) || 0;
-    if (secs <= 0) return '0s';
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    const hours = String(date.getHours()).padStart(2, '0');
+    const mins = String(date.getMinutes()).padStart(2, '0');
+    const secs = String(date.getSeconds()).padStart(2, '0');
+    return { date: dateStr, time: `${hours}:${mins}:${secs}` };
   }
 
   static renderSkeleton(container) {
-    const rows = Array.from({ length: 4 }).map(() => `
+    const rows = Array.from({ length: 5 }).map(() => `
       <tr class="skeleton-row">
         <td><span class="skeleton-shimmer"></span></td>
         <td><span class="skeleton-shimmer short"></span></td>
@@ -283,9 +294,7 @@ class TableView {
         <td><span class="skeleton-shimmer badge"></span></td>
         <td><span class="skeleton-shimmer badge"></span></td>
         <td><span class="skeleton-shimmer short"></span></td>
-        <td><span class="skeleton-shimmer badge"></span></td>
-        <td><span class="skeleton-shimmer badge"></span></td>
-        <td><span class="skeleton-shimmer badge"></span></td>
+        <td><span class="skeleton-shimmer short"></span></td>
       </tr>
     `).join('');
     container.innerHTML = rows;
@@ -294,7 +303,7 @@ class TableView {
   static renderError(container, message, onRetry) {
     container.innerHTML = `
       <tr>
-        <td colspan="12">
+        <td colspan="10">
           <div class="empty-state-card">
             <span class="empty-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -318,7 +327,7 @@ class TableView {
 
     container.innerHTML = `
       <tr>
-        <td colspan="12">
+        <td colspan="10">
           <div class="empty-state-card">
             <span class="empty-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -333,53 +342,77 @@ class TableView {
 
   static renderRows(container, calls) {
     container.innerHTML = calls.map((call, idx) => {
-      const name = call.student_name || 'Customer';
-      const initial = name.charAt(0).toUpperCase();
       const callId = call.snapserve_call_id || call.id || '—';
       const agentName = call.agent_name || call.agent_id || 'Voice Agent';
-      const fromPhone = call.phone || '—';
+      const fromPhone = call.from_number || '—';
+      const toPhone = call.to_number || call.phone || '—';
+      const callType = call.call_type || 'Live Call';
+      const isCampaign = String(callType).toLowerCase().includes('campaign');
       const status = String(call.status || 'completed').toLowerCase();
-      const dispKey = DispositionService.detect(call);
-      const durationStr = this.formatDuration(call.duration);
-      const dateStr = this.formatDate(call.created_at || call.ended_at);
+      const disposition = call.disposition || '';
+      const dur = Number(call.duration) || 0;
+      const cost = call.cost || '';
+      const { date, time } = this.formatDateParts(call.created_at || call.ended_at);
+
+      // Call Type Pill
+      const callTypeBadge = isCampaign
+        ? `<span class="call-type-pill">↗ 📢 Campaign</span>`
+        : `<span class="call-type-pill">↙ 📞 Live Call</span>`;
+
+      // Status Pill
+      let statusBadge = '';
+      if (status === 'calling') {
+        statusBadge = `<span class="status-pill status-calling"><span class="status-dot"></span>Calling</span>`;
+      } else if (status === 'failed' || status === 'error') {
+        statusBadge = `<span class="status-pill status-failed"><span class="status-dot"></span>Failed</span>`;
+      } else if (status === 'no-pickup' || status === 'no_answer' || status === 'no-answer') {
+        statusBadge = `<span class="status-pill status-nopickup"><span class="status-dot"></span>No Pickup</span>`;
+      } else {
+        statusBadge = `<span class="status-pill status-completed"><span class="status-dot"></span>Completed</span>`;
+      }
+
+      // Disposition Pill
+      const dispBadge = disposition && disposition !== '—'
+        ? `<span class="disp-badge">${DOM.safe(disposition)}</span>`
+        : `<span class="table-dash">—</span>`;
+
+      // Duration
+      const durationStr = (status === 'calling' || status === 'failed' || dur <= 0)
+        ? `<span class="table-dash">—</span>`
+        : `${dur}s`;
+
+      // Cost
+      const costStr = (cost && cost !== '—' && cost !== '0' && cost !== '₹0.00')
+        ? `<span class="cost-cell">${DOM.safe(cost)}</span>`
+        : `<span class="table-dash">—</span>`;
 
       return `
-        <tr>
-          <td style="font-size:0.8rem;white-space:nowrap;">${DOM.safe(dateStr)}</td>
-          <td><span class="call-id-chip">#${DOM.safe(callId.slice(0, 10))}</span></td>
+        <tr data-index="${idx}" title="Click to view call recording, summary and transcript">
           <td>
-            <div class="user-cell-wrap">
-              <span class="avatar-circle">${DOM.safe(initial)}</span>
-              <strong>${DOM.safe(name)}</strong>
+            <div class="date-cell-wrap">
+              <span class="date-cell-main">${DOM.safe(date)}</span>
+              <span class="date-cell-time">${DOM.safe(time)}</span>
             </div>
           </td>
+          <td><span class="call-id-mono">${DOM.safe(callId)}</span></td>
           <td>
-            <span class="agent-cell-pill">
-              ${DOM.safe(agentName)}
-            </span>
+            <div class="agent-cell-wrap">
+              <span class="agent-avatar-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </span>
+              <span class="agent-cell-name">${DOM.safe(agentName)}</span>
+            </div>
           </td>
-          <td style="font-family:var(--apple-mono);font-size:0.84rem;">${DOM.safe(fromPhone)}</td>
-          <td>
-            <span class="call-type-badge call-type-outbound">Outbound ↗</span>
-          </td>
-          <td>
-            <span class="status-badge ${status === 'completed' ? 'status-completed' : 'status-failed'}">
-              ${status === 'completed' ? 'Completed' : DOM.safe(status)}
-            </span>
-          </td>
-          <td>
-            ${DispositionService.renderPill(dispKey)}
-          </td>
-          <td style="font-family:var(--apple-mono);font-weight:600;">${DOM.safe(durationStr)}</td>
-          <td>
-            ${call.summary ? `<button class="tbl-btn" type="button" data-action="summary" data-index="${idx}">Summary</button>` : '—'}
-          </td>
-          <td>
-            ${call.recording_url ? `<button class="tbl-btn btn-play" type="button" data-action="play" data-index="${idx}">Listen</button>` : '—'}
-          </td>
-          <td>
-            ${call.transcript ? `<button class="tbl-btn btn-transcript" type="button" data-action="transcript" data-index="${idx}">Transcript</button>` : '—'}
-          </td>
+          <td><span class="phone-cell">${DOM.safe(fromPhone)}</span></td>
+          <td><span class="phone-cell">${DOM.safe(toPhone)}</span></td>
+          <td>${callTypeBadge}</td>
+          <td>${statusBadge}</td>
+          <td>${dispBadge}</td>
+          <td style="font-weight:500;">${durationStr}</td>
+          <td>${costStr}</td>
         </tr>
       `;
     }).join('');
@@ -565,18 +598,48 @@ class CallRecordsApp {
 
     this.exportCallsBtn.addEventListener('click', () => this.exportCsv());
 
-    // Table Row Actions (Event Delegation)
+    // Sub-Tabs Switching (Calls, Callbacks, Transfers)
+    const subTabs = document.querySelectorAll('.sub-tab-btn');
+    subTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        subTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const tabName = tab.dataset.tab;
+        if (tabName === 'callbacks') {
+          this.callDispositionFilter.value = 'call_back_requested';
+        } else {
+          this.callDispositionFilter.value = '';
+        }
+        this.filterAndRender();
+      });
+    });
+
+    // Date Range Trigger
+    const dateRangeBtn = DOM.byId('dateRangeBtn');
+    if (dateRangeBtn) {
+      dateRangeBtn.addEventListener('click', () => {
+        this.callDateRangeFilter.focus();
+        if (typeof this.callDateRangeFilter.showPicker === 'function') {
+          this.callDateRangeFilter.showPicker();
+        }
+      });
+    }
+
+    // Table Row Click Actions
     this.callsBody.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      const action = btn.dataset.action;
-      const index = Number(btn.dataset.index);
+      const row = e.target.closest('tr[data-index]');
+      if (!row) return;
+      const index = Number(row.dataset.index);
       const call = this.visibleCalls[index];
       if (!call) return;
 
-      if (action === 'play') this.audioPlayer.open(call);
-      else if (action === 'transcript') this.openTranscript(call);
-      else if (action === 'summary') this.openSummary(call);
+      if (call.recording_url) {
+        this.audioPlayer.open(call);
+      } else if (call.transcript) {
+        this.openTranscript(call);
+      } else if (call.summary) {
+        this.openSummary(call);
+      }
     });
 
     // Transcript Modals

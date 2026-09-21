@@ -37,11 +37,39 @@ function callFromPayload(body = {}) {
   const summary = call.callSummary || call.call_summary || call.summary ||
     body.callSummary || body.call_summary || body.summary || body.analysis?.summary || '';
 
+  const from = String(call.from || call.fromNumber || call.from_number || call.caller_id || call.callerId ||
+    body.from || body.fromNumber || body.from_number || '').trim();
+  const to = String(call.to || call.toNumber || call.to_number || call.recipient || call.phone ||
+    body.to || body.toNumber || body.to_number || body.phone || '').trim();
+  const callType = call.callType || call.call_type || call.type || body.callType || body.call_type ||
+    (call.campaignId || call.campaign_id ? 'Campaign' : 'Live Call');
+  const disposition = String(call.disposition || call.disposition_tag || call.dispositionName || call.disposition_name ||
+    call.analysis?.disposition || body.disposition || body.disposition_tag || body.analysis?.disposition || '').trim();
+
+  let cost = call.cost ?? call.callCost ?? call.call_cost ?? body.cost ?? body.callCost ?? '';
+  if (typeof cost === 'number' && cost > 0) {
+    cost = `₹${cost.toFixed(2)}`;
+  } else if (typeof cost === 'string' && cost.trim()) {
+    cost = cost.trim();
+    if (!cost.startsWith('₹') && !cost.startsWith('$')) {
+      const num = parseFloat(cost.replace(/[^\d.]/g, ''));
+      if (!isNaN(num) && num > 0) cost = `₹${num.toFixed(2)}`;
+    }
+  }
+
+  const snapserveCallId = String(call.executionId || call.execution_id || call.exec_id ||
+    call.id || call.callId || call.call_id || body.executionId || body.execution_id || body.callId || body.id || '');
+
   return {
-    snapserve_call_id: String(call.id || call.callId || body.callId || body.id || ''),
+    snapserve_call_id: snapserveCallId,
     agent_id: String(call.agentId || call.agent_id || call.agent?.id || body.agentId || body.agent_id || body.agent?.id || ''),
     agent_name: call.agentName || call.agent_name || call.agent?.name || body.agentName || body.agent_name || body.agent?.name || '',
-    phone: call.toNumber || call.phone || call.fromNumber || body.toNumber || body.phone || body.fromNumber || '',
+    phone: to || from || '',
+    from_number: from,
+    to_number: to,
+    call_type: callType,
+    disposition: disposition,
+    cost: String(cost || ''),
     student_name: call.studentName || call.student_name || call.customerName || call.customer_name ||
       call.leadName || call.lead_name || body.studentName || body.student_name || body.customerName ||
       body.customer_name || body.leadName || body.lead_name || metadata.name || metadata.student_name ||

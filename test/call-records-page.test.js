@@ -25,22 +25,22 @@ test('contains the exact filter bar matching user mockups', () => {
   assert.match(html, /id="exportCallsBtn"/);
 });
 
-test('uses Name for column header instead of Student', () => {
-  assert.match(html, /<th scope="col">NAME<\/th>/);
-  assert.doesNotMatch(html, /STUDENT \/ LEAD/);
+test('includes the 5 summary metric cards matching user screenshot', () => {
+  assert.match(html, /id="dispCountTotal"/);
+  assert.match(html, /id="dispCountCompleted"/);
+  assert.match(html, /id="dispCountVoicemail"/);
+  assert.match(html, /id="dispCountFailed"/);
+  assert.match(html, /id="dispAvgDuration"/);
 });
 
-test('includes table columns for date, call id, name, agent, from, call type, status, disposition, duration, summary, recording, transcript', () => {
+test('includes the exact 10 table columns matching user screenshot', () => {
   const expectedCols = [
-    'DATE &amp; TIME', 'CALL ID', 'NAME', 'AGENT', 'FROM',
-    'CALL TYPE', 'STATUS', 'DISPOSITION', 'DURATION',
-    'SUMMARY', 'RECORDING', 'TRANSCRIPT'
+    'DATE &amp; TIME', 'CALL ID', 'AGENT', 'FROM', 'TO',
+    'CALL TYPE', 'STATUS', 'DISPOSITION', 'DURATION', 'COST'
   ];
   for (const col of expectedCols) {
     assert.ok(html.includes(`<th scope="col">${col}</th>`), `Missing header column ${col}`);
   }
-  assert.ok(!html.includes('<th scope="col">TO</th>'), 'TO column should be removed');
-  assert.ok(!html.includes('<th scope="col">COST</th>'), 'COST column should be removed');
 });
 
 test('provides waveform player, turn-by-turn chat transcript, and summary modals', () => {
