@@ -34,3 +34,46 @@ test('accepts wrapped SnapServe call-list responses', () => {
   assert.deepEqual(callsFromResponse({ data: { calls } }), calls);
   assert.deepEqual(callsFromResponse({ results: calls }), calls);
 });
+
+test('normalizes exact SnapServe API schema with dispositionResult and costCents', () => {
+  const { categorizeDisposition } = require('../call-normalization');
+  const rawPayload = {
+    id: 456,
+    agentId: 123,
+    status: 'completed',
+    toNumber: '+919876543210',
+    fromNumber: '+917971543255',
+    durationSeconds: 84,
+    costCents: 700,
+    transcript: 'Agent: Hello...',
+    callSummary: 'Caller asked about clinic hours.',
+    dispositionResult: 'Interested',
+    recordingUrl: 'https://app.snapserve.ai/recordings/call-456.mp3'
+  };
+
+  const call = callFromPayload(rawPayload);
+  assert.equal(call.snapserve_call_id, '456');
+  assert.equal(call.agent_id, '123');
+  assert.equal(call.to_number, '+919876543210');
+  assert.equal(call.from_number, '+917971543255');
+  assert.equal(call.duration, 84);
+  assert.equal(call.cost, '₹7.00');
+  assert.equal(call.disposition, 'Interested');
+  assert.equal(call.summary, 'Caller asked about clinic hours.');
+  assert.equal(call.status, 'completed');
+
+  const catInterested = categorizeDisposition(call.disposition);
+  assert.equal(catInterested.key, 'interested');
+
+  const catCallback = categorizeDisposition('Call Back Requested');
+  assert.equal(catCallback.key, 'callback');
+
+  const catVoicemail = categorizeDisposition('No Answer', 'no-pickup');
+  assert.equal(catVoicemail.key, 'voicemail');
+
+  const catNotInterested = categorizeDisposition('Not Interested');
+  assert.equal(catNotInterested.key, 'not_interested');
+
+  const catFailed = categorizeDisposition('', 'failed');
+  assert.equal(catFailed.key, 'failed');
+});

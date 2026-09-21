@@ -49,11 +49,38 @@ No manual table creation is required. The application creates these tables and i
 
 For explicit provisioning, run `database.sql` once in the Neon SQL Editor. Do not place the Neon connection string or SnapServe key in GitHub.
 
-## Local MCP verification
+## External MCP client configuration (Claude Desktop, Cursor, Antigravity IDE)
 
-```bash
-npm install
-SNAPSERVE_API_KEY=your_key npm run mcp:start
+Add this to your `claude_desktop_config.json`, `mcp_config.json`, or `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "snapserve": {
+      "command": "npx",
+      "args": ["-y", "@snapserveai/mcp"],
+      "env": {
+        "SNAPSERVE_API_KEY": "sk_live_YOUR_KEY",
+        "SNAPSERVE_BASE_URL": "https://app.snapserve.ai/api"
+      }
+    }
+  }
+}
 ```
 
-For an external MCP-aware desktop client, use the absolute path to `voiceorch/lib/snapserve-mcp/dist/index.js` as shown in the SnapServe configuration.
+Or when running against the local workspace MCP server:
+
+```json
+{
+  "mcpServers": {
+    "snapserve": {
+      "command": "node",
+      "args": ["voiceorch/lib/snapserve-mcp/dist/index.js"],
+      "env": {
+        "SNAPSERVE_API_KEY": "your_key",
+        "SNAPSERVE_BASE_URL": "https://app.snapserve.ai/api"
+      }
+    }
+  }
+}
+```

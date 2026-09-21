@@ -8,7 +8,7 @@ const { pipeline } = require('node:stream/promises');
 const { initiateOutboundCall, fetchSnapserveAgents } = require('./snapserve');
 const { selectAgentForCourse, courseForAgentName, isLeadEligibleForCall } = require('./course-agent');
 const { appendLead, getLeads, updateLeadAgent } = require('./lead-storage');
-const { upsertCall, getCalls } = require('./call-storage');
+const { upsertCall, upsertCallsBulk, getCalls } = require('./call-storage');
 const { callFromPayload, callsFromResponse } = require('./call-normalization');
 const { callSnapServeTool, closeSnapServeMcp } = require('./snapserve-mcp-client');
 const { getAutoCallEnabled, setAutoCallEnabled } = require('./settings-storage');
@@ -264,6 +264,9 @@ app.post('/call-lead', requireAdmin, async (req, res) => {
 });
 
 let isCallSyncRunning = false;
+let memoryCallsCache = null;
+let lastCacheTime = 0;
+const CACHE_TTL_MS = 6000;
 
 async function syncRemoteCalls(apiKey) {
   if (isCallSyncRunning) return;
@@ -298,8 +301,10 @@ async function syncRemoteCalls(apiKey) {
 
     if (remotePayload) {
       const snapserveCalls = callsFromResponse(remotePayload);
-      for (const call of snapserveCalls) {
-        await upsertCall(CALLS_PATH, callFromPayload(call)).catch(() => {});
+      if (snapserveCalls.length > 0) {
+        const normalized = snapserveCalls.map(c => callFromPayload(c));
+        await upsertCallsBulk(CALLS_PATH, normalized);
+        memoryCallsCache = null; // Invalidate cache so fresh data is read
       }
     }
   } catch (syncErr) {
@@ -311,20 +316,27 @@ async function syncRemoteCalls(apiKey) {
 
 app.get('/calls', requireAdmin, async (req, res) => {
   try {
-    let calls = await getCalls(CALLS_PATH);
-
     const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
     if (apiKey) {
-      // Sync in background or fast-race so the user is never blocked
-      if (req.query.sync === 'true' || calls.length === 0) {
+      // If client requests explicit sync, wait briefly; otherwise sync in background without blocking
+      if (req.query.sync === 'true') {
         await Promise.race([
           syncRemoteCalls(apiKey),
-          new Promise((resolve) => setTimeout(resolve, 3000))
+          new Promise((resolve) => setTimeout(resolve, 2000))
         ]);
-        calls = await getCalls(CALLS_PATH);
       } else {
-        syncRemoteCalls(apiKey).catch(() => {});
+        setImmediate(() => syncRemoteCalls(apiKey).catch(() => {}));
       }
+    }
+
+    const now = Date.now();
+    let calls;
+    if (memoryCallsCache && (now - lastCacheTime < CACHE_TTL_MS) && req.query.sync !== 'true') {
+      calls = memoryCallsCache;
+    } else {
+      calls = await getCalls(CALLS_PATH);
+      memoryCallsCache = calls;
+      lastCacheTime = now;
     }
 
     const leads = await getLeads(CSV_PATH).catch(() => []);

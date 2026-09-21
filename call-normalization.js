@@ -43,11 +43,22 @@ function callFromPayload(body = {}) {
     body.to || body.toNumber || body.to_number || body.phone || '').trim();
   const callType = call.callType || call.call_type || call.type || body.callType || body.call_type ||
     (call.campaignId || call.campaign_id ? 'Campaign' : 'Live Call');
-  const disposition = String(call.disposition || call.disposition_tag || call.dispositionName || call.disposition_name ||
-    call.analysis?.disposition || body.disposition || body.disposition_tag || body.analysis?.disposition || '').trim();
+  
+  // SnapServe API returns dispositionResult (e.g. "Interested", "Call Back Requested", etc.)
+  const disposition = String(
+    call.dispositionResult || call.disposition_result || body.dispositionResult || body.disposition_result ||
+    call.disposition || call.disposition_tag || call.dispositionName || call.disposition_name ||
+    call.analysis?.disposition || body.disposition || body.disposition_tag || body.analysis?.disposition || ''
+  ).trim();
 
   let cost = call.cost ?? call.callCost ?? call.call_cost ?? body.cost ?? body.callCost ?? '';
-  if (typeof cost === 'number' && cost > 0) {
+  const costCents = call.costCents ?? call.cost_cents ?? body.costCents ?? body.cost_cents;
+  if (costCents !== undefined && costCents !== null && costCents !== '') {
+    const centsNum = Number(costCents);
+    if (!isNaN(centsNum) && centsNum > 0) {
+      cost = `₹${(centsNum / 100).toFixed(2)}`;
+    }
+  } else if (typeof cost === 'number' && cost > 0) {
     cost = `₹${cost.toFixed(2)}`;
   } else if (typeof cost === 'string' && cost.trim()) {
     cost = cost.trim();
@@ -102,4 +113,76 @@ function callsFromResponse(payload) {
   return [];
 }
 
-module.exports = { normalizeTranscript, normalizeCallStatus, callFromPayload, callsFromResponse };
+function categorizeDisposition(rawDisposition, status = '', summary = '', evalResult = '') {
+  const text = `${rawDisposition || ''} ${evalResult || ''} ${summary || ''} ${status || ''}`.toLowerCase();
+  
+  if (text.includes('not interested') || text.includes('not_interested') || text.includes('rejected') || text.includes('wrong number') || text.includes('do not call')) {
+    return {
+      key: 'not_interested',
+      label: 'Not Interested',
+      badgeClass: 'disp-not-interested',
+      color: '#e11d48',
+      bg: '#fff1f2'
+    };
+  }
+  if (text.includes('call back') || text.includes('callback') || text.includes('follow up') || text.includes('reschedule') || text.includes('call later')) {
+    return {
+      key: 'callback',
+      label: 'Call Back Requested',
+      badgeClass: 'disp-callback',
+      color: '#2563eb',
+      bg: '#eff6ff'
+    };
+  }
+  if (text.includes('converted') || text.includes('enrolled') || text.includes('interested') || text.includes('demo') || text.includes('joined')) {
+    return {
+      key: 'interested',
+      label: 'Interested',
+      badgeClass: 'disp-interested',
+      color: '#059669',
+      bg: '#ecfdf5'
+    };
+  }
+  if (text.includes('no answer') || text.includes('no_answer') || text.includes('no pickup') || text.includes('voicemail') || text.includes('busy') || text.includes('unreachable') || String(status).toLowerCase() === 'no-pickup') {
+    return {
+      key: 'voicemail',
+      label: 'No Answer / Voicemail',
+      badgeClass: 'disp-voicemail',
+      color: '#6b7280',
+      bg: '#f3f4f6'
+    };
+  }
+  if (String(status).toLowerCase() === 'failed' || String(status).toLowerCase() === 'error' || text.includes('failed') || text.includes('timeout')) {
+    return {
+      key: 'failed',
+      label: 'Failed',
+      badgeClass: 'disp-failed',
+      color: '#ea580c',
+      bg: '#fff7ed'
+    };
+  }
+  if (rawDisposition && rawDisposition.trim() && rawDisposition !== '—') {
+    return {
+      key: 'custom',
+      label: rawDisposition.trim(),
+      badgeClass: 'disp-custom',
+      color: '#475569',
+      bg: '#f1f5f9'
+    };
+  }
+  return {
+    key: 'uncategorized',
+    label: 'Uncategorized',
+    badgeClass: 'disp-neutral',
+    color: '#94a3b8',
+    bg: '#f8fafc'
+  };
+}
+
+module.exports = {
+  normalizeTranscript,
+  normalizeCallStatus,
+  callFromPayload,
+  callsFromResponse,
+  categorizeDisposition
+};

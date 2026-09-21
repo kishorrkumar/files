@@ -8,6 +8,7 @@
     const callAgentFilter = document.getElementById('callAgentFilter');
     const callCourseFilter = document.getElementById('callCourseFilter');
     const callStatusFilter = document.getElementById('callStatusFilter');
+    const callDispositionFilter = document.getElementById('callDispositionFilter');
     const callResultCount = document.getElementById('callResultCount');
     const messagesList = document.getElementById('messagesList');
     const refreshMessagesBtn = document.getElementById('refreshMessagesBtn');
@@ -451,35 +452,85 @@
       document.getElementById('activeAgentsVal').textContent = uniqueAgents.size;
     }
 
+    function categorizeCallDisposition(call) {
+      const rawDisposition = call.disposition || call.dispositionResult || '';
+      const text = `${rawDisposition} ${call.success_evaluation || ''} ${call.summary || ''} ${call.status || ''}`.toLowerCase();
+      
+      if (text.includes('not interested') || text.includes('not_interested') || text.includes('rejected') || text.includes('wrong number') || text.includes('do not call')) {
+        return { key: 'not_interested', label: 'Not Interested', color: '#e11d48', bg: '#fff1f2' };
+      }
+      if (text.includes('call back') || text.includes('callback') || text.includes('follow up') || text.includes('reschedule') || text.includes('call later')) {
+        return { key: 'callback', label: 'Call Back Requested', color: '#2563eb', bg: '#eff6ff' };
+      }
+      if (text.includes('converted') || text.includes('enrolled') || text.includes('interested') || text.includes('demo') || text.includes('joined')) {
+        return { key: 'interested', label: 'Interested', color: '#059669', bg: '#ecfdf5' };
+      }
+      if (text.includes('no answer') || text.includes('no_answer') || text.includes('no pickup') || text.includes('voicemail') || text.includes('busy') || text.includes('unreachable') || String(call.status).toLowerCase() === 'no-pickup') {
+        return { key: 'voicemail', label: 'No Answer / Voicemail', color: '#6b7280', bg: '#f3f4f6' };
+      }
+      if (String(call.status).toLowerCase() === 'failed' || String(call.status).toLowerCase() === 'error' || text.includes('failed') || text.includes('timeout')) {
+        return { key: 'failed', label: 'Failed', color: '#ea580c', bg: '#fff7ed' };
+      }
+      if (rawDisposition && rawDisposition.trim() && rawDisposition !== '—') {
+        return { key: 'custom', label: rawDisposition.trim(), color: '#475569', bg: '#f1f5f9' };
+      }
+      return { key: 'uncategorized', label: 'Uncategorized', color: '#94a3b8', bg: '#f8fafc' };
+    }
+
     function renderCalls() {
-      const enriched = deduplicateCalls(enrichCalls(availableCalls));
+      const enriched = deduplicateCalls(enrichCalls(availableCalls)).map(call => ({
+        ...call,
+        dispCategory: categorizeCallDisposition(call)
+      }));
+
+      // Update Disposition Bucket Counts
+      const counts = { all: enriched.length, interested: 0, callback: 0, voicemail: 0, not_interested: 0, failed: 0 };
+      enriched.forEach(call => {
+        const k = call.dispCategory.key;
+        if (counts[k] !== undefined) counts[k]++;
+      });
+      if (document.getElementById('dispTabCountAll')) document.getElementById('dispTabCountAll').textContent = counts.all;
+      if (document.getElementById('dispTabCountInterested')) document.getElementById('dispTabCountInterested').textContent = counts.interested;
+      if (document.getElementById('dispTabCountCallback')) document.getElementById('dispTabCountCallback').textContent = counts.callback;
+      if (document.getElementById('dispTabCountVoicemail')) document.getElementById('dispTabCountVoicemail').textContent = counts.voicemail;
+      if (document.getElementById('dispTabCountNotInterested')) document.getElementById('dispTabCountNotInterested').textContent = counts.not_interested;
+      if (document.getElementById('dispTabCountFailed')) document.getElementById('dispTabCountFailed').textContent = counts.failed;
+
       const relatedAgentNames = uniqueValues(enriched, 'filter_agent');
       populateFilter(callAgentFilter, relatedAgentNames, 'All related agents');
       populateFilter(callCourseFilter, ACADEMY_COURSES, 'All three courses');
       populateFilter(callStatusFilter, uniqueValues(enriched, 'status'), 'All statuses');
 
       const query = callSearch.value.trim().toLowerCase();
+      const selectedDisp = callDispositionFilter?.value || '';
+
       const calls = enriched.filter(call => {
         const haystack = [
-          call.id, call.student_name, call.phone, call.summary,
-          call.success_evaluation, call.filter_agent, call.course
+          call.id, call.snapserve_call_id, call.student_name, call.phone, call.summary,
+          call.success_evaluation, call.filter_agent, call.course, call.dispCategory.label
         ].join(' ').toLowerCase();
-        return (!query || haystack.includes(query)) &&
-          (!callAgentFilter.value || call.filter_agent === callAgentFilter.value) &&
-          (!callCourseFilter.value || call.course === callCourseFilter.value) &&
-          (!callStatusFilter.value || call.status === callStatusFilter.value);
+
+        const matchQuery = !query || haystack.includes(query);
+        const matchAgent = !callAgentFilter.value || call.filter_agent === callAgentFilter.value;
+        const matchCourse = !callCourseFilter.value || call.course === callCourseFilter.value;
+        const matchStatus = !callStatusFilter.value || call.status === callStatusFilter.value;
+        const matchDisp = !selectedDisp || call.dispCategory.key === selectedDisp;
+
+        return matchQuery && matchAgent && matchCourse && matchStatus && matchDisp;
       });
 
       visibleCalls = calls;
-      callResultCount.textContent = calls.length + ' calls shown';
+      callResultCount.textContent = calls.length + ' of ' + enriched.length + ' calls shown';
       updateCallMetrics(calls);
 
       if (!calls.length) {
-        callsBody.innerHTML = '<tr><td colspan="12" class="empty">No calls match these filters.</td></tr>';
+        callsBody.innerHTML = '<tr><td colspan="13" class="empty">No calls match these filters.</td></tr>';
         return;
       }
 
-      callsBody.innerHTML = calls.map((call, callIndex) => `
+      callsBody.innerHTML = calls.map((call, callIndex) => {
+        const disp = call.dispCategory;
+        return `
         <tr>
           <td><strong>${safe(call.snapserve_call_id || call.id || '—')}</strong></td>
           <td>${safe(call.student_name || 'Not available')}</td>
@@ -488,13 +539,15 @@
           <td>${safe(call.phone || '—')}</td>
           <td>${safe((Number(call.duration) || 0) + 's')}</td>
           <td><span class="badge" style="background:${String(call.status).toLowerCase() === 'completed' ? '#e2f9e1' : '#ffe7e7'}; color:${String(call.status).toLowerCase() === 'completed' ? '#1f7a1e' : '#c52828'};">${safe(call.status || 'unknown')}</span></td>
+          <td><span class="badge" style="background:${disp.bg}; color:${disp.color}; font-weight:600; border:1px solid ${disp.color}33;">${safe(disp.label)}</span></td>
           <td>${call.summary ? '<button class="mini-btn summary-btn" type="button" data-summary-index="' + callIndex + '">View summary</button>' : '—'}</td>
           <td style="max-width:200px;font-size:0.9rem;">${safe(call.success_evaluation || '—')}</td>
           <td>${call.recording_url ? '<button class="mini-btn recording-btn" type="button" data-recording-index="' + callIndex + '">Play</button>' : '—'}</td>
           <td>${call.transcript ? '<button class="mini-btn transcript-btn" type="button" data-transcript-index="' + callIndex + '">View transcript</button>' : '—'}</td>
           <td style="font-size:0.85rem;white-space:nowrap;">${safe(formatCallDate(call.call_datetime))}</td>
         </tr>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function openSummary(summaryIndex) {
@@ -649,15 +702,21 @@
     }
 
     async function loadCalls() {
-      callsBody.innerHTML = '<tr><td colspan="12" class="empty">Loading call records…</td></tr>';
+      callsBody.innerHTML = '<tr><td colspan="13" class="empty">Loading call records…</td></tr>';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       try {
-        const response = await fetch('/calls');
+        const response = await fetch('/calls', { signal: controller.signal });
         if (!response.ok) throw new Error('Unable to load call logs');
         const calls = await response.json();
         availableCalls = Array.isArray(calls) ? calls : [];
         renderCalls();
       } catch (error) {
-        callsBody.innerHTML = '<tr><td colspan="12" class="empty">' + safe(error.message) + '</td></tr>';
+        const msg = error.name === 'AbortError' ? 'Loading timed out. Please retry.' : error.message;
+        callsBody.innerHTML = '<tr><td colspan="13" class="empty">' + safe(msg) + ' <button id="retryCallsBtn" class="button button-secondary" style="margin-left:8px;" type="button">Retry</button></td></tr>';
+        document.getElementById('retryCallsBtn')?.addEventListener('click', loadCalls);
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
@@ -718,8 +777,18 @@
     [leadSearch, leadCourseFilter, leadAssignmentFilter].forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderLeads);
     });
-    [callSearch, callAgentFilter, callCourseFilter, callStatusFilter].forEach(control => {
+    [callSearch, callAgentFilter, callCourseFilter, callStatusFilter, callDispositionFilter].filter(Boolean).forEach(control => {
       control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', renderCalls);
+    });
+
+    document.querySelectorAll('.disp-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.disp-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tabKey = btn.dataset.dispTab;
+        if (callDispositionFilter) callDispositionFilter.value = tabKey === 'all' ? '' : tabKey;
+        renderCalls();
+      });
     });
     messageSearch.addEventListener('input', renderMessages);
     messageStatusFilter.addEventListener('change', renderMessages);
@@ -741,6 +810,8 @@
       callAgentFilter.value = '';
       callCourseFilter.value = '';
       callStatusFilter.value = '';
+      if (callDispositionFilter) callDispositionFilter.value = '';
+      document.querySelectorAll('.disp-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.dispTab === 'all'));
       renderCalls();
     });
     leadsBody.addEventListener('click', (event) => {

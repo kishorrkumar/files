@@ -39,3 +39,31 @@ test('appends call records to CSV and retrieves them accurately', async () => {
   assert.equal(calls[0].student_name, 'Aditi Rao');
   assert.equal(calls[0].course, 'UI/UX Design Mastery');
 });
+
+test('upserts calls in bulk quickly and merges by snapserve_call_id', async () => {
+  const { upsertCallsBulk } = require('../call-storage');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'call-bulk-'));
+  const callsPath = path.join(tempDir, 'calls.csv');
+
+  const batch = [
+    { snapserve_call_id: 'c1', agent_name: 'Agent A', disposition: 'Interested', status: 'completed', duration: 30 },
+    { snapserve_call_id: 'c2', agent_name: 'Agent B', disposition: 'Call Back Requested', status: 'no-pickup', duration: 15 }
+  ];
+
+  await upsertCallsBulk(callsPath, batch);
+  let saved = await getCalls(callsPath);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].disposition, 'Interested');
+  assert.equal(saved[1].disposition, 'Call Back Requested');
+
+  // Update existing call in next bulk batch
+  await upsertCallsBulk(callsPath, [
+    { snapserve_call_id: 'c1', summary: 'Updated summary', cost: '₹2.50' }
+  ]);
+
+  saved = await getCalls(callsPath);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].disposition, 'Interested');
+  assert.equal(saved[0].summary, 'Updated summary');
+  assert.equal(saved[0].cost, '₹2.50');
+});

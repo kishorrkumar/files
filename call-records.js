@@ -63,29 +63,31 @@ class DispositionService {
   };
 
   static detect(call) {
+    const rawDisp = String(call.disposition || call.dispositionResult || '').toLowerCase();
     const evalStr = String(call.success_evaluation || '').toLowerCase();
     const summaryStr = String(call.summary || '').toLowerCase();
     const statusStr = String(call.status || '').toLowerCase();
+    const combined = `${rawDisp} ${evalStr} ${summaryStr} ${statusStr}`;
 
-    if (evalStr.includes('converted') || summaryStr.includes('converted') || summaryStr.includes('enrolled')) {
-      return 'converted';
-    }
-    if (evalStr.includes('interested') || evalStr.includes('passed') || evalStr.includes('success') || evalStr.includes('true') || summaryStr.includes('interested')) {
-      return 'interested';
-    }
-    if (evalStr.includes('follow') || evalStr.includes('callback') || summaryStr.includes('follow up') || summaryStr.includes('call back')) {
-      return 'followup';
-    }
-    if (evalStr.includes('not interested') || summaryStr.includes('not interested') || evalStr.includes('rejected')) {
+    if (combined.includes('not interested') || combined.includes('not_interested') || combined.includes('rejected') || combined.includes('do not call')) {
       return 'notinterested';
     }
-    if (statusStr === 'failed' || statusStr === 'error') {
+    if (combined.includes('call back') || combined.includes('callback') || combined.includes('follow up') || combined.includes('followup') || combined.includes('reschedule')) {
+      return 'followup';
+    }
+    if (combined.includes('converted') || combined.includes('enrolled') || summaryStr.includes('converted') || summaryStr.includes('enrolled')) {
+      return 'converted';
+    }
+    if (combined.includes('interested') || combined.includes('passed') || combined.includes('success') || combined.includes('true')) {
+      return 'interested';
+    }
+    if (statusStr === 'failed' || statusStr === 'error' || combined.includes('failed') || combined.includes('timeout')) {
       return 'failed';
     }
-    if (statusStr === 'no-answer' || statusStr === 'busy' || Number(call.duration || 0) === 0) {
+    if (statusStr === 'no-answer' || statusStr === 'no_answer' || statusStr === 'busy' || statusStr === 'no-pickup' || combined.includes('no answer') || combined.includes('no pickup') || combined.includes('voicemail')) {
       return 'noanswer';
     }
-    return 'interested';
+    return rawDisp ? 'interested' : (Number(call.duration || 0) > 0 ? 'interested' : 'noanswer');
   }
 
   static renderPill(dispositionKey) {

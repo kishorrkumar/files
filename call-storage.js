@@ -335,8 +335,71 @@ async function upsertCall(callsPath, callData) {
   return created;
 }
 
+async function upsertCallsBulk(callsPath, callsArray) {
+  if (!Array.isArray(callsArray) || callsArray.length === 0) return [];
+  const sql = database();
+  if (sql) {
+    const results = [];
+    for (const callData of callsArray) {
+      const saved = await upsertDatabaseCall(sql, callData).catch(() => null);
+      if (saved) results.push(saved);
+    }
+    return results;
+  }
+
+  const resolvedPath = resolveCallsPath(callsPath);
+  await ensureCallsFile(resolvedPath);
+  const calls = await getCalls(resolvedPath);
+
+  const bySnapserveId = new Map();
+  calls.forEach((c, idx) => {
+    if (c.snapserve_call_id) bySnapserveId.set(String(c.snapserve_call_id), idx);
+  });
+
+  let nextId = calls.reduce((max, call) => Math.max(max, Number(call.id) || 0), 0) + 1;
+
+  for (const callData of callsArray) {
+    const snapserveId = String(callData.snapserve_call_id || callData.call_id || '');
+    const index = snapserveId && bySnapserveId.has(snapserveId) ? bySnapserveId.get(snapserveId) : -1;
+
+    if (index >= 0) {
+      calls[index] = mergeCall(calls[index], { ...callData, snapserve_call_id: snapserveId });
+    } else {
+      const created = mergeCall({
+        id: nextId,
+        snapserve_call_id: snapserveId,
+        agent_id: '',
+        agent_name: '',
+        phone: '',
+        from_number: '',
+        to_number: '',
+        call_type: 'Live Call',
+        disposition: '',
+        cost: '',
+        student_name: '',
+        course: '',
+        duration: 0,
+        summary: '',
+        success_evaluation: '',
+        recording_url: '',
+        transcript: '',
+        status: 'unknown',
+        created_at: new Date().toISOString(),
+        ended_at: ''
+      }, callData);
+      created.id = nextId++;
+      created.snapserve_call_id = snapserveId;
+      calls.push(created);
+      if (snapserveId) bySnapserveId.set(snapserveId, calls.length - 1);
+    }
+  }
+
+  await writeCalls(resolvedPath, calls);
+  return calls;
+}
+
 async function appendCall(callsPath, callData) {
   return upsertCall(callsPath, callData);
 }
 
-module.exports = { appendCall, upsertCall, getCalls };
+module.exports = { appendCall, upsertCall, upsertCallsBulk, getCalls };
