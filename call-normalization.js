@@ -21,15 +21,26 @@ function normalizeCallStatus(status, call = {}) {
 
 function extractDispositionValue(val) {
   if (!val) return '';
-  if (typeof val === 'string') return val.trim();
-  if (typeof val === 'object') {
-    if (val.disposition) return String(val.disposition).trim();
-    if (val.outcome) return String(val.outcome).trim();
-    if (val.result) return String(val.result).trim();
-    if (val.category) return String(val.category).trim();
-    if (val.label) return String(val.label).trim();
-    if (val.status) return String(val.status).trim();
-    const str = Object.values(val).find(v => typeof v === 'string' && v.trim());
+  let obj = val;
+  if (typeof val === 'string') {
+    try {
+      obj = JSON.parse(val);
+    } catch(e) {
+      return val.trim();
+    }
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    if (obj.nature_of_business && (obj.outcome === 'nature_of_business' || !obj.outcome)) {
+      return String(obj.nature_of_business).trim();
+    }
+    const outcome = obj.outcome || obj.sub || obj.primary || obj.NOT_CONNECTED || obj.disposition || obj.result || obj.category || obj.label;
+    if (outcome) {
+      return String(outcome).trim();
+    }
+    if (obj.nature_of_business) return String(obj.nature_of_business).trim();
+    if (obj.monthly_turnover !== undefined) return 'monthly_turnover';
+    if (obj.fund_required !== undefined) return 'fund_required';
+    const str = Object.values(obj).find(v => typeof v === 'string' && v.trim());
     if (str) return str.trim();
   }
   return String(val).trim();
@@ -60,12 +71,23 @@ function callFromPayload(body = {}) {
   const callType = call.callType || call.call_type || call.type || body.callType || body.call_type ||
     (call.campaignId || call.campaign_id ? 'Campaign' : 'Live Call');
   
-  // SnapServe API returns dispositionResult (string or object like { disposition: "Interested" })
-  let disposition = extractDispositionValue(
-    call.dispositionResult || call.disposition_result || body.dispositionResult || body.disposition_result ||
-    call.disposition || call.disposition_tag || call.dispositionName || call.disposition_name ||
-    call.analysis?.disposition || body.disposition || body.disposition_tag || body.analysis?.disposition || ''
-  );
+  // Extract parsed disposition object if present
+  let dispRaw = call.dispositionResult ?? call.disposition_result ?? body.dispositionResult ?? body.disposition_result ??
+    call.disposition ?? call.disposition_tag ?? call.dispositionName ?? call.disposition_name ??
+    call.analysis?.disposition ?? body.disposition ?? body.disposition_tag ?? body.analysis?.disposition ?? '';
+  
+  let dispObj = null;
+  if (dispRaw && typeof dispRaw === 'string') {
+    try { dispObj = JSON.parse(dispRaw); } catch(e) {}
+  } else if (dispRaw && typeof dispRaw === 'object') {
+    dispObj = dispRaw;
+  }
+
+  const monthlyTurnover = dispObj?.monthly_turnover ?? call.monthly_turnover ?? '';
+  const fundRequired = dispObj?.fund_required ?? call.fund_required ?? '';
+  const natureOfBusiness = dispObj?.nature_of_business ?? call.nature_of_business ?? '';
+
+  let disposition = extractDispositionValue(dispRaw);
 
   const evalResult = call.successEvaluation || call.success_evaluation || body.successEvaluation || body.success_evaluation || body.analysis?.successEvaluation || '';
   const callStatus = normalizeCallStatus(call.status || body.status || body.call_status || body.callStatus || body.event || body.type, {
@@ -74,13 +96,6 @@ function callFromPayload(body = {}) {
     transcript,
     recording_url: recordingUrl
   });
-
-  if (!disposition || disposition === '—') {
-    const detected = categorizeDisposition('', callStatus, summary, evalResult, transcript);
-    if (detected && detected.label && detected.label !== 'Uncategorized') {
-      disposition = detected.label;
-    }
-  }
 
   let cost = call.cost ?? call.callCost ?? call.call_cost ?? body.cost ?? body.callCost ?? '';
   const costCents = call.costCents ?? call.cost_cents ?? body.costCents ?? body.cost_cents;
@@ -102,7 +117,6 @@ function callFromPayload(body = {}) {
   let snapserveCallId = String(call.executionId || call.execution_id || call.exec_id ||
     call.id || call.callId || call.call_id || body.executionId || body.execution_id || body.callId || body.id || '').trim();
   if (snapserveCallId && !snapserveCallId.startsWith('exec_') && !isNaN(Number(snapserveCallId))) {
-    // If it's a numeric ID, we still preserve it, but prioritize executionId if provided
     snapserveCallId = call.executionId || body.executionId || snapserveCallId;
   }
 
@@ -120,6 +134,9 @@ function callFromPayload(body = {}) {
     to_number: to,
     call_type: callType,
     disposition: disposition,
+    monthly_turnover: monthlyTurnover,
+    fund_required: fundRequired,
+    nature_of_business: natureOfBusiness,
     cost: String(cost || ''),
     student_name: studentName,
     course: call.course || call.courseName || call.course_name || body.course || body.courseName ||

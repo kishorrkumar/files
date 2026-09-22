@@ -183,13 +183,13 @@ class CallFilterEngine {
   }
 
   static apply(calls, criteria) {
-    const { query, status, agent, disposition, dateRange, sort, tab } = criteria;
+    const { query, status, agent, course, disposition, dateRange, dateFrom, dateTo, sort, tab } = criteria;
 
     let result = calls.filter(call => {
       // Subtab check (Calls, Callbacks, Transfers)
       if (tab === 'callbacks') {
-        const dKey = DispositionService.detect(call);
-        if (dKey !== 'callback') return false;
+        const dStr = String(call.disposition || '').toLowerCase();
+        if (!dStr.includes('call back') && !dStr.includes('callback')) return false;
       } else if (tab === 'transfers') {
         const cType = String(call.call_type || '').toLowerCase();
         const cStat = String(call.status || '').toLowerCase();
@@ -205,35 +205,68 @@ class CallFilterEngine {
       const callDisp = call.disposition || '';
       const studentName = call.student_name || '';
       const summary = typeof call.summary === 'string' ? call.summary : '';
+      const nature = call.nature_of_business || '';
+      const courseVal = call.course || '';
 
-      const haystack = [callId, agentName, fromPhone, toPhone, callType, callStatus, callDisp, studentName, summary].join(' ').toLowerCase();
+      const haystack = [callId, agentName, fromPhone, toPhone, callType, callStatus, callDisp, studentName, summary, nature].join(' ').toLowerCase();
 
       const searchMatch = !query || haystack.includes(query.toLowerCase());
-      const statusMatch = !status || String(callStatus).toLowerCase() === status.toLowerCase();
+      
+      let statusMatch = true;
+      if (status) {
+        const sNorm = String(callStatus).toLowerCase().replace(/[\s_-]+/g, '');
+        const fNorm = status.toLowerCase().replace(/[\s_-]+/g, '');
+        statusMatch = sNorm === fNorm || sNorm.includes(fNorm);
+      }
+
       const agentMatch = !agent || agentName.toLowerCase() === agent.toLowerCase();
+      const courseMatch = !course || courseVal.toLowerCase() === course.toLowerCase();
       
       let dispMatch = true;
       if (disposition && disposition !== 'all') {
-        const detectedKey = DispositionService.detect(call);
-        const filterKey = disposition.toLowerCase().replace(/[\s_-]+/g, '');
-        if (filterKey === 'interested') {
-          dispMatch = detectedKey === 'interested';
-        } else if (filterKey === 'callback' || filterKey === 'callbacks' || filterKey === 'callbackrequested') {
-          dispMatch = detectedKey === 'callback';
-        } else if (filterKey === 'voicemail' || filterKey === 'noanswer' || filterKey === 'noanswervoicemail') {
-          dispMatch = detectedKey === 'voicemail';
-        } else if (filterKey === 'notinterested') {
-          dispMatch = detectedKey === 'notinterested';
-        } else if (filterKey === 'failed') {
-          dispMatch = detectedKey === 'failed';
+        const fVal = disposition.toLowerCase().trim();
+        const dVal = callDisp.toLowerCase().trim();
+        const nVal = String(nature).toLowerCase().trim();
+
+        if (fVal === 'interested_eligible') {
+          dispMatch = dVal.includes('interested_eligible') || dVal.includes('interested eligible');
+        } else if (fVal === 'not interested') {
+          dispMatch = dVal.includes('not interested') || dVal.includes('not_interested');
+        } else if (fVal === 'below_turnover_threshold') {
+          dispMatch = dVal.includes('below_turnover') || dVal.includes('below turnover');
+        } else if (fVal === 'call back requested') {
+          dispMatch = dVal.includes('call back') || dVal.includes('callback');
+        } else if (fVal === 'monthly_turnover') {
+          dispMatch = dVal.includes('monthly_turnover') || Boolean(call.monthly_turnover);
+        } else if (fVal === 'fund_required') {
+          dispMatch = dVal.includes('fund_required') || Boolean(call.fund_required);
+        } else if (fVal === 'nature_of_business') {
+          dispMatch = dVal.includes('nature_of_business') || Boolean(call.nature_of_business);
+        } else if (fVal === 'real estate') {
+          dispMatch = dVal.includes('real estate') || nVal.includes('real estate');
+        } else if (fVal === 'steel business') {
+          dispMatch = dVal.includes('steel business') || nVal.includes('steel business');
         } else {
-          dispMatch = detectedKey === filterKey || String(call.disposition || '').toLowerCase().includes(filterKey);
+          dispMatch = dVal.includes(fVal) || nVal.includes(fVal);
         }
       }
 
-      const dateMatch = this.isWithinDateRange(call.created_at || call.ended_at, dateRange);
+      // Date matching
+      let dateMatch = true;
+      const callTime = new Date(call.created_at || call.ended_at).getTime();
+      if (dateFrom) {
+        const fromTime = new Date(dateFrom).setHours(0, 0, 0, 0);
+        if (!isNaN(fromTime) && callTime < fromTime) dateMatch = false;
+      }
+      if (dateTo && dateMatch) {
+        const toTime = new Date(dateTo).setHours(23, 59, 59, 999);
+        if (!isNaN(toTime) && callTime > toTime) dateMatch = false;
+      }
+      if (!dateFrom && !dateTo) {
+        dateMatch = this.isWithinDateRange(call.created_at || call.ended_at, dateRange);
+      }
 
-      return searchMatch && statusMatch && agentMatch && dispMatch && dateMatch;
+      return searchMatch && statusMatch && agentMatch && courseMatch && dispMatch && dateMatch;
     });
 
     result.sort((a, b) => {
@@ -268,7 +301,7 @@ class MetricsView {
     let durationCount = 0;
 
     listForCards.forEach(call => {
-      const status = String(call.status || '').toLowerCase();
+      const status = String(call.status || '').toLowerCase().replace(/[\s_-]+/g, '');
       const disp = String(call.disposition || '').toLowerCase();
       const dur = Number(call.duration) || 0;
 
@@ -276,9 +309,7 @@ class MetricsView {
         completed++;
       } else if (status === 'failed' || status === 'error') {
         failed++;
-      }
-
-      if (status === 'no-pickup' || status === 'no_answer' || disp.includes('no_answer') || disp.includes('voicemail') || status.includes('voicemail')) {
+      } else if (status === 'voicemail' || disp.includes('voicemail')) {
         voicemail++;
       }
 
@@ -313,9 +344,18 @@ class MetricsView {
     };
 
     listForBuckets.forEach(call => {
-      const key = DispositionService.detect(call);
-      if (bucketCounts[key] !== undefined) {
-        bucketCounts[key]++;
+      const d = String(call.disposition || '').toLowerCase();
+      const s = String(call.status || '').toLowerCase();
+      if (d.includes('interested') || d.includes('eligible')) {
+        bucketCounts.interested++;
+      } else if (d.includes('call back') || d.includes('callback')) {
+        bucketCounts.callback++;
+      } else if (d.includes('not interested') || d.includes('not_interested')) {
+        bucketCounts.notinterested++;
+      } else if (s === 'failed' || s === 'error') {
+        bucketCounts.failed++;
+      } else if (s.includes('voicemail') || s.includes('pickup') || s.includes('no_answer')) {
+        bucketCounts.voicemail++;
       }
     });
 
@@ -430,13 +470,12 @@ class TableView {
   static renderRows(container, calls) {
     container.innerHTML = calls.map((call, idx) => {
       const callId = call.snapserve_call_id || call.id || '—';
-      const agentName = call.agent_name || call.agent_id || 'Voice Agent';
-      const studentName = call.student_name || 'Customer';
+      const agentName = call.agent_name || call.agent_id || 'MR Fin Tamil';
       const fromPhone = call.from_number || '—';
       const toPhone = call.to_number || call.phone || '—';
       const callType = call.call_type || 'Live Call';
       const isCampaign = String(callType).toLowerCase().includes('campaign');
-      const status = String(call.status || 'completed').toLowerCase();
+      const status = String(call.status || 'completed').toLowerCase().replace(/[\s_-]+/g, '');
       const dur = Number(call.duration) || 0;
       const cost = call.cost || '';
       const { date, time } = this.formatDateParts(call.created_at || call.ended_at);
@@ -446,21 +485,46 @@ class TableView {
         ? `<span class="call-type-pill">↗ 📢 Campaign</span>`
         : `<span class="call-type-pill">↙ 📞 Live Call</span>`;
 
-      // Status Pill
+      // Status Pill matching Screenshot 2
       let statusBadge = '';
-      if (status === 'calling' || status === 'ringing' || status === 'in_progress') {
+      if (status === 'calling' || status === 'ringing' || status === 'inprogress') {
         statusBadge = `<span class="status-pill status-calling"><span class="status-dot"></span>Calling</span>`;
       } else if (status === 'failed' || status === 'error') {
         statusBadge = `<span class="status-pill status-failed"><span class="status-dot"></span>Failed</span>`;
-      } else if (status === 'no-pickup' || status === 'no_answer' || status === 'no-answer') {
+      } else if (status === 'nopickup' || status === 'noanswer' || status === 'busy') {
         statusBadge = `<span class="status-pill status-nopickup"><span class="status-dot"></span>No Pickup</span>`;
+      } else if (status === 'pending') {
+        statusBadge = `<span class="status-pill status-calling"><span class="status-dot"></span>Pending</span>`;
+      } else if (status === 'cancelled') {
+        statusBadge = `<span class="status-pill status-failed"><span class="status-dot"></span>Cancelled</span>`;
+      } else if (status === 'transferred') {
+        statusBadge = `<span class="status-pill status-calling"><span class="status-dot"></span>Transferred</span>`;
       } else {
         statusBadge = `<span class="status-pill status-completed"><span class="status-dot"></span>Completed</span>`;
       }
 
-      // Disposition Pill (always rendered using normalized service, never empty dash)
-      const dispKey = DispositionService.detect(call);
-      const dispBadge = DispositionService.renderPill(dispKey);
+      // Disposition Badge matching Screenshot 2
+      const rawDisp = (call.disposition || '').trim();
+      let dispBadge = '<span class="table-dash">—</span>';
+      if (rawDisp && rawDisp !== '—') {
+        const norm = rawDisp.toLowerCase();
+        let pillClass = 'disp-neutral';
+        if (norm.includes('interested_eligible') || norm === 'interested') {
+          pillClass = 'disp-interested';
+        } else if (norm.includes('not interested') || norm.includes('not_interested')) {
+          pillClass = 'disp-notinterested';
+        } else if (norm.includes('call back') || norm.includes('callback')) {
+          pillClass = 'disp-followup';
+        } else if (norm.includes('below_turnover') || norm.includes('threshold')) {
+          pillClass = 'disp-threshold';
+        } else if (norm.includes('nature') || norm.includes('steel') || norm.includes('real estate') || norm.includes('fund') || norm.includes('turnover')) {
+          pillClass = 'disp-info';
+        } else if (norm.includes('no pickup') || norm.includes('no_answer') || norm.includes('busy')) {
+          pillClass = 'disp-noanswer';
+        }
+        const displayLabel = rawDisp.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        dispBadge = `<span class="disp-badge ${pillClass}">${DOM.safe(displayLabel)}</span>`;
+      }
 
       // Duration
       const durationStr = (status === 'calling' || status === 'failed' || dur <= 0)
@@ -489,10 +553,7 @@ class TableView {
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
               </span>
-              <div>
-                <span class="agent-cell-name">${DOM.safe(agentName)}</span>
-                <span style="display:block;font-size:0.75rem;color:var(--apple-label-tertiary);">${DOM.safe(studentName)}</span>
-              </div>
+              <span class="agent-cell-name">${DOM.safe(agentName)}</span>
             </div>
           </td>
           <td><span class="phone-cell">${DOM.safe(fromPhone)}</span></td>
@@ -641,8 +702,16 @@ class CallRecordsApp {
     this.callSearch = DOM.byId('callSearch');
     this.callStatusFilter = DOM.byId('callStatusFilter');
     this.callAgentFilter = DOM.byId('callAgentFilter');
+    this.callCourseFilter = DOM.byId('callCourseFilter');
     this.callDispositionFilter = DOM.byId('callDispositionFilter');
     this.callDateRangeFilter = DOM.byId('callDateRangeFilter');
+    this.dateRangeBtn = DOM.byId('dateRangeBtn');
+    this.dateRangePopover = DOM.byId('dateRangePopover');
+    this.dateRangeFrom = DOM.byId('dateRangeFrom');
+    this.dateRangeTo = DOM.byId('dateRangeTo');
+    this.dateRangeClearBtn = DOM.byId('dateRangeClearBtn');
+    this.dateRangeTodayBtn = DOM.byId('dateRangeTodayBtn');
+
     this.callSortFilter = DOM.byId('callSortFilter');
     this.exportCallsBtn = DOM.byId('exportCallsBtn');
     this.exportCsvBtn = DOM.byId('exportCsvBtn');
@@ -671,9 +740,41 @@ class CallRecordsApp {
     this.callSearch.addEventListener('input', handleFilterChange);
     this.callStatusFilter.addEventListener('change', handleFilterChange);
     this.callAgentFilter.addEventListener('change', handleFilterChange);
+    if (this.callCourseFilter) this.callCourseFilter.addEventListener('change', handleFilterChange);
     this.callDispositionFilter.addEventListener('change', handleFilterChange);
     this.callDateRangeFilter.addEventListener('change', handleFilterChange);
     this.callSortFilter.addEventListener('change', handleFilterChange);
+
+    // Date Range Popover Toggle & Inputs
+    if (this.dateRangeBtn && this.dateRangePopover) {
+      this.dateRangeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.dateRangePopover.hidden = !this.dateRangePopover.hidden;
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.date-range-btn-wrap')) {
+          this.dateRangePopover.hidden = true;
+        }
+      });
+    }
+
+    if (this.dateRangeFrom) this.dateRangeFrom.addEventListener('change', handleFilterChange);
+    if (this.dateRangeTo) this.dateRangeTo.addEventListener('change', handleFilterChange);
+    if (this.dateRangeClearBtn) {
+      this.dateRangeClearBtn.addEventListener('click', () => {
+        if (this.dateRangeFrom) this.dateRangeFrom.value = '';
+        if (this.dateRangeTo) this.dateRangeTo.value = '';
+        handleFilterChange();
+      });
+    }
+    if (this.dateRangeTodayBtn) {
+      this.dateRangeTodayBtn.addEventListener('click', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        if (this.dateRangeFrom) this.dateRangeFrom.value = today;
+        if (this.dateRangeTo) this.dateRangeTo.value = today;
+        handleFilterChange();
+      });
+    }
 
     // Quick Bucket Buttons
     const bucketBtns = document.querySelectorAll('.disp-bucket-btn');
@@ -691,8 +792,11 @@ class CallRecordsApp {
       this.callSearch.value = '';
       this.callStatusFilter.value = '';
       this.callAgentFilter.value = '';
+      if (this.callCourseFilter) this.callCourseFilter.value = '';
       this.callDispositionFilter.value = '';
       this.callDateRangeFilter.value = 'all';
+      if (this.dateRangeFrom) this.dateRangeFrom.value = '';
+      if (this.dateRangeTo) this.dateRangeTo.value = '';
       this.callSortFilter.value = 'newest';
       bucketBtns.forEach(b => b.classList.toggle('active', (b.dataset.disp || 'all') === 'all'));
       this.filterAndRender();
@@ -722,17 +826,6 @@ class CallRecordsApp {
         this.filterAndRender();
       });
     });
-
-    // Date Range Trigger
-    const dateRangeBtn = DOM.byId('dateRangeBtn');
-    if (dateRangeBtn) {
-      dateRangeBtn.addEventListener('click', () => {
-        this.callDateRangeFilter.focus();
-        if (typeof this.callDateRangeFilter.showPicker === 'function') {
-          this.callDateRangeFilter.showPicker();
-        }
-      });
-    }
 
     // Table Row Click Actions
     this.callsBody.addEventListener('click', (e) => {
@@ -787,7 +880,7 @@ class CallRecordsApp {
     this.callResultCount.textContent = 'Loading call records…';
 
     try {
-      this.availableCalls = await CallApiService.fetchCalls(15000);
+      this.availableCalls = await CallApiService.fetchCalls(20000);
       this.populateDropdownFilters();
       this.filterAndRender();
     } catch (err) {
@@ -798,18 +891,59 @@ class CallRecordsApp {
   }
 
   populateDropdownFilters() {
-    const statuses = [...new Set(this.availableCalls.map(c => c.status).filter(Boolean))].sort();
-    const agents = [...new Set(this.availableCalls.map(c => c.agent_name || c.agent_id).filter(Boolean))].sort();
+    // 1. Statuses
+    const knownStatuses = ['calling', 'in_progress', 'completed', 'failed', 'pending', 'cancelled', 'transferred', 'no_pickup'];
+    const callStatuses = [...new Set(this.availableCalls.map(c => c.status).filter(Boolean))];
+    const allStatuses = [...new Set([...knownStatuses, ...callStatuses])];
 
     const currStatus = this.callStatusFilter.value;
     this.callStatusFilter.innerHTML = '<option value="">All statuses</option>' +
-      statuses.map(s => `<option value="${DOM.safe(s)}">${DOM.safe(s.charAt(0).toUpperCase() + s.slice(1))}</option>`).join('');
-    this.callStatusFilter.value = statuses.includes(currStatus) ? currStatus : '';
+      allStatuses.map(s => {
+        const label = s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return `<option value="${DOM.safe(s)}">${DOM.safe(label)}</option>`;
+      }).join('');
+    this.callStatusFilter.value = currStatus || '';
 
+    // 2. Agents
+    const agents = [...new Set(this.availableCalls.map(c => c.agent_name || c.agent_id).filter(Boolean))].sort();
     const currAgent = this.callAgentFilter.value;
     this.callAgentFilter.innerHTML = '<option value="">All agents</option>' +
       agents.map(a => `<option value="${DOM.safe(a)}">${DOM.safe(a)}</option>`).join('');
     this.callAgentFilter.value = agents.includes(currAgent) ? currAgent : '';
+
+    // 3. Courses
+    if (this.callCourseFilter) {
+      const courses = [...new Set(this.availableCalls.map(c => c.course).filter(Boolean))].sort();
+      const currCourse = this.callCourseFilter.value;
+      this.callCourseFilter.innerHTML = '<option value="">All courses</option>' +
+        courses.map(c => `<option value="${DOM.safe(c)}">${DOM.safe(c)}</option>`).join('');
+      this.callCourseFilter.value = courses.includes(currCourse) ? currCourse : '';
+    }
+
+    // 4. Dispositions (including all specified by user & present in calls)
+    const baseDispositions = [
+      'interested_eligible',
+      'not interested',
+      'below_turnover_threshold',
+      'call back requested',
+      'monthly_turnover',
+      'fund_required',
+      'nature_of_business',
+      'real estate',
+      'steel business',
+      'no pickup',
+      'no_answer',
+      'busy',
+      'interested'
+    ];
+    const callDisps = this.availableCalls.map(c => c.disposition).filter(Boolean);
+    const callNatures = this.availableCalls.map(c => c.nature_of_business).filter(Boolean);
+    const allDispositions = [...new Set([...baseDispositions, ...callDisps, ...callNatures])];
+
+    const currDisp = this.callDispositionFilter.value;
+    this.callDispositionFilter.innerHTML = '<option value="">All dispositions</option>' +
+      allDispositions.map(d => `<option value="${DOM.safe(d)}">${DOM.safe(d)}</option>`).join('');
+    this.callDispositionFilter.value = currDisp || '';
   }
 
   filterAndRender() {
@@ -817,8 +951,11 @@ class CallRecordsApp {
       query: this.callSearch.value.trim(),
       status: this.callStatusFilter.value,
       agent: this.callAgentFilter.value,
+      course: this.callCourseFilter ? this.callCourseFilter.value : '',
       disposition: this.callDispositionFilter.value,
       dateRange: this.callDateRangeFilter.value,
+      dateFrom: this.dateRangeFrom ? this.dateRangeFrom.value : '',
+      dateTo: this.dateRangeTo ? this.dateRangeTo.value : '',
       sort: this.callSortFilter.value,
       tab: this.activeTab || 'calls'
     };
@@ -830,7 +967,8 @@ class CallRecordsApp {
 
     // Update Result Header
     const hasFilters = Boolean(criteria.query || criteria.status || criteria.agent ||
-      criteria.disposition || (criteria.dateRange && criteria.dateRange !== 'all'));
+      criteria.course || criteria.disposition || criteria.dateFrom || criteria.dateTo ||
+      (criteria.dateRange && criteria.dateRange !== 'all'));
 
     this.clearCallFilters.hidden = !hasFilters;
     this.callResultCount.textContent = `${this.visibleCalls.length} of ${this.availableCalls.length} calls shown`;
@@ -900,11 +1038,11 @@ class CallRecordsApp {
       call.phone ? 'Phone: ' + call.phone : ''
     ].filter(Boolean).join(' · ');
 
-    const dispKey = DispositionService.detect(call);
+    const rawDisp = (call.disposition || '').trim();
     DOM.byId('summaryModalDispBadge').innerHTML = `
       <div style="display:flex;align-items:center;gap:10px;">
         <strong style="font-size:0.85rem;color:var(--apple-label-secondary);">Outcome:</strong>
-        ${DispositionService.renderPill(dispKey)}
+        <span class="disp-badge">${DOM.safe(rawDisp || 'Completed')}</span>
       </div>
     `;
 
@@ -934,7 +1072,6 @@ class CallRecordsApp {
     const headers = [
       'Date & Time',
       'Call ID',
-      'Customer Name',
       'Agent',
       'From Number',
       'To Number',
@@ -943,37 +1080,33 @@ class CallRecordsApp {
       'Disposition',
       'Duration (sec)',
       'Cost',
+      'Monthly Turnover',
+      'Fund Required',
+      'Nature of Business',
       'AI Summary',
       'Recording URL'
     ];
 
     const rowsXml = this.visibleCalls.map(c => {
-      const dispKey = DispositionService.detect(c);
-      const dispConfig = DispositionService.CONFIG[dispKey] || DispositionService.CONFIG.interested;
-      const dispLabel = dispConfig.label;
       const dateFormatted = TableView.formatDate(c.created_at || c.ended_at);
       const dur = Number(c.duration) || 0;
-
-      let styleId = 'Default';
-      if (dispKey === 'interested') styleId = 'InterestedStyle';
-      else if (dispKey === 'callback') styleId = 'CallbackStyle';
-      else if (dispKey === 'voicemail') styleId = 'VoicemailStyle';
-      else if (dispKey === 'notinterested') styleId = 'NotInterestedStyle';
-      else if (dispKey === 'failed') styleId = 'FailedStyle';
+      const disp = c.disposition || '—';
 
       return `
     <Row ss:AutoFitHeight="0" ss:Height="22">
       <Cell ss:StyleID="DateStyle"><Data ss:Type="String">${xmlEscape(dateFormatted)}</Data></Cell>
       <Cell ss:StyleID="MonoStyle"><Data ss:Type="String">${xmlEscape(c.snapserve_call_id || c.id || '')}</Data></Cell>
-      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.student_name || 'Customer')}</Data></Cell>
-      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.agent_name || c.agent_id || 'Voice Agent')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.agent_name || c.agent_id || 'MR Fin Tamil')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.from_number || '')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.to_number || c.phone || '')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.call_type || 'Live Call')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.status || 'completed')}</Data></Cell>
-      <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${xmlEscape(dispLabel)}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(disp)}</Data></Cell>
       <Cell ss:StyleID="NumberStyle"><Data ss:Type="Number">${dur}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.cost || '—')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.monthly_turnover || '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.fund_required || '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.nature_of_business || '')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(typeof c.summary === 'string' ? c.summary : '')}</Data></Cell>
       <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.recording_url || '')}</Data></Cell>
     </Row>`;
@@ -1023,36 +1156,6 @@ class CallRecordsApp {
    <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#1D1D1F"/>
    <NumberFormat ss:Format="#,##0"/>
   </Style>
-  <Style ss:ID="InterestedStyle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
-   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#1A8754"/>
-   <Interior ss:Color="#EBF9F1" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="CallbackStyle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
-   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#0071E3"/>
-   <Interior ss:Color="#EBF4FE" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="VoicemailStyle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
-   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#6E6E73"/>
-   <Interior ss:Color="#F5F5F7" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="NotInterestedStyle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
-   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#DE350B"/>
-   <Interior ss:Color="#FDF0ED" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="FailedStyle">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
-   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#D97706"/>
-   <Interior ss:Color="#FFF3E8" ss:Pattern="Solid"/>
-  </Style>
  </Styles>
  <Worksheet ss:Name="Call Records">
   <Table ss:DefaultRowHeight="20">
@@ -1061,12 +1164,14 @@ class CallRecordsApp {
    <Column ss:Width="110"/>
    <Column ss:Width="110"/>
    <Column ss:Width="110"/>
-   <Column ss:Width="110"/>
    <Column ss:Width="90"/>
    <Column ss:Width="90"/>
-   <Column ss:Width="140"/>
+   <Column ss:Width="150"/>
    <Column ss:Width="90"/>
    <Column ss:Width="80"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="150"/>
    <Column ss:Width="260"/>
    <Column ss:Width="180"/>
    <Row ss:AutoFitHeight="0" ss:Height="26">
@@ -1097,7 +1202,6 @@ class CallRecordsApp {
     const headers = [
       'Date & Time',
       'Call ID',
-      'Customer Name',
       'Agent',
       'From Number',
       'To Number',
@@ -1106,25 +1210,28 @@ class CallRecordsApp {
       'Disposition',
       'Duration (sec)',
       'Cost',
+      'Monthly Turnover',
+      'Fund Required',
+      'Nature of Business',
       'Summary',
       'Recording URL'
     ];
 
     const rows = this.visibleCalls.map(c => {
-      const dispKey = DispositionService.detect(c);
-      const dispConfig = DispositionService.CONFIG[dispKey] || DispositionService.CONFIG.interested;
       return [
         TableView.formatDate(c.created_at || c.ended_at),
         c.snapserve_call_id || c.id || '',
-        c.student_name || 'Customer',
-        c.agent_name || c.agent_id || 'Voice Agent',
+        c.agent_name || c.agent_id || 'MR Fin Tamil',
         c.from_number || '',
         c.to_number || c.phone || '',
         c.call_type || 'Live Call',
         c.status || 'completed',
-        dispConfig.label,
+        c.disposition || '—',
         c.duration || 0,
         c.cost || '',
+        c.monthly_turnover || '',
+        c.fund_required || '',
+        c.nature_of_business || '',
         typeof c.summary === 'string' ? c.summary.replace(/[\r\n]+/g, ' ') : '',
         c.recording_url || ''
       ];

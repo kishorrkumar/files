@@ -164,25 +164,43 @@
         </div>
 
         <div class="filter-dropdowns">
-          <select id="callStatusFilter" class="toolbar-select" aria-label="Filter by status">
-            <option value="">All statuses</option>
-            <option value="calling">Calling</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="no-pickup">No Pickup</option>
+          <select id="callDispositionFilter" class="toolbar-select active-focus" aria-label="Filter by disposition">
+            <option value="">All dispositions</option>
+            <option value="interested_eligible">interested_eligible</option>
+            <option value="not interested">not interested</option>
+            <option value="below_turnover_threshold">below_turnover_threshold</option>
+            <option value="call back requested">call back requested</option>
+            <option value="monthly_turnover">monthly_turnover</option>
+            <option value="fund_required">fund_required</option>
+            <option value="nature_of_business">nature_of_business</option>
+            <option value="real estate">real estate</option>
+            <option value="steel business">steel business</option>
+            <option value="no pickup">no pickup</option>
+            <option value="no_answer">no_answer</option>
+            <option value="busy">busy</option>
+            <option value="interested">interested</option>
           </select>
 
           <select id="callAgentFilter" class="toolbar-select" aria-label="Filter by agent">
             <option value="">All agents</option>
+            <option value="MR Fin Tamil">MR Fin Tamil</option>
+            <option value="Mr Fin Malayalam">Mr Fin Malayalam</option>
           </select>
 
-          <select id="callDispositionFilter" class="toolbar-select active-focus" aria-label="Filter by disposition">
-            <option value="">All dispositions</option>
-            <option value="interested">Interested</option>
-            <option value="callback">Call Back Requested</option>
-            <option value="voicemail">No Answer / Voicemail</option>
-            <option value="notinterested">Not Interested</option>
+          <select id="callCourseFilter" class="toolbar-select" aria-label="Filter by course">
+            <option value="">All courses</option>
+          </select>
+
+          <select id="callStatusFilter" class="toolbar-select" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="calling">Calling</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
             <option value="failed">Failed</option>
+            <option value="pending">Pending</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="transferred">Transferred</option>
+            <option value="no_pickup">No Pickup</option>
           </select>
 
           <div class="date-range-btn-wrap">
@@ -192,7 +210,24 @@
               </svg>
               Date Range
             </button>
-            <select id="callDateRangeFilter" class="toolbar-select date-range-select" aria-label="Date Range">
+            <div id="dateRangePopover" class="date-range-popover" hidden>
+              <div class="date-range-popover-title">Date Range</div>
+              <div class="date-range-fields-row">
+                <div class="date-range-field">
+                  <span class="date-range-label">From</span>
+                  <input type="date" id="dateRangeFrom" class="date-range-input" />
+                </div>
+                <div class="date-range-field">
+                  <span class="date-range-label">To</span>
+                  <input type="date" id="dateRangeTo" class="date-range-input" />
+                </div>
+              </div>
+              <div class="date-range-actions">
+                <button type="button" id="dateRangeClearBtn" class="date-popover-btn link-btn">Clear</button>
+                <button type="button" id="dateRangeTodayBtn" class="date-popover-btn primary-btn">Today</button>
+              </div>
+            </div>
+            <select id="callDateRangeFilter" class="toolbar-select date-range-select" aria-label="Date Range" hidden>
               <option value="all">Date Range: All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>

@@ -275,8 +275,8 @@ async function syncRemoteCalls(apiKey) {
     let remotePayload;
     if (String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true') {
       try {
-        const mcpPromise = callSnapServeTool('snapserve_list_calls', { limit: 500 });
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MCP sync timeout')), 3500));
+        const mcpPromise = callSnapServeTool('snapserve_list_calls', {});
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MCP sync timeout')), 4000));
         remotePayload = await Promise.race([mcpPromise, timeoutPromise]);
       } catch (mcpErr) {
         console.warn('MCP call list notice, falling back to REST API:', mcpErr.message);
@@ -288,9 +288,9 @@ async function syncRemoteCalls(apiKey) {
         process.env.SNAPSERVE_API_BASE_URL || process.env.SNAPSERVE_API_URL ||
         'https://app.snapserve.ai/api';
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       try {
-        const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls?limit=500`, {
+        const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls`, {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Accept': 'application/json'
@@ -316,6 +316,7 @@ async function syncRemoteCalls(apiKey) {
         const savedCalls = await upsertCallsBulk(CALLS_PATH, normalized);
         memoryCallsCache = savedCalls;
         lastCacheTime = Date.now();
+        console.log(`Synced ${savedCalls.length} calls from SnapServe.`);
       }
     }
   } catch (syncErr) {
@@ -327,13 +328,12 @@ async function syncRemoteCalls(apiKey) {
 
 app.get('/calls', requireAdmin, async (req, res) => {
   try {
-    const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token;
+    const apiKey = process.env.SNAPSERVE_API_KEY || process.env.SNAPSERVE_API_TOKEN || process.env.snapserve_api_token || '';
     if (apiKey) {
-      // If client requests explicit sync, wait briefly; otherwise sync in background without blocking
-      if (req.query.sync === 'true') {
+      if (req.query.sync === 'true' || !memoryCallsCache) {
         await Promise.race([
           syncRemoteCalls(apiKey),
-          new Promise((resolve) => setTimeout(resolve, 3500))
+          new Promise((resolve) => setTimeout(resolve, 5000))
         ]).catch((e) => console.warn('Sync notice:', e.message));
       } else {
         setImmediate(() => syncRemoteCalls(apiKey).catch(() => {}));

@@ -7,7 +7,9 @@ const { databaseUrl } = require('./database-config');
 const HEADERS = [
   'id', 'snapserve_call_id', 'agent_id', 'agent_name', 'phone', 'from_number', 'to_number',
   'call_type', 'disposition', 'cost', 'student_name', 'course', 'duration',
-  'summary', 'success_evaluation', 'recording_url', 'transcript', 'status', 'created_at', 'ended_at'
+  'summary', 'success_evaluation', 'recording_url', 'transcript', 'status',
+  'monthly_turnover', 'fund_required', 'nature_of_business',
+  'created_at', 'ended_at'
 ];
 
 let sqlClient;
@@ -43,6 +45,9 @@ async function ensureDatabaseSchema(sql) {
         recording_url TEXT,
         transcript TEXT,
         status TEXT NOT NULL DEFAULT 'unknown',
+        monthly_turnover TEXT,
+        fund_required TEXT,
+        nature_of_business TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         ended_at TIMESTAMPTZ
       )
@@ -66,6 +71,9 @@ async function ensureDatabaseSchema(sql) {
   await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS call_type TEXT`);
   await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS disposition TEXT`);
   await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS cost TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS monthly_turnover TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS fund_required TEXT`);
+  await safeAlter(sql`ALTER TABLE call_records ADD COLUMN IF NOT EXISTS nature_of_business TEXT`);
 
   await safeAlter(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS call_records_snapserve_id_idx
@@ -99,6 +107,9 @@ function normalizedDatabaseCall(row) {
     recording_url: row.recording_url || '',
     transcript: row.transcript || '',
     status: row.status || 'unknown',
+    monthly_turnover: row.monthly_turnover || '',
+    fund_required: row.fund_required || '',
+    nature_of_business: row.nature_of_business || '',
     created_at: row.created_at || '',
     ended_at: row.ended_at || ''
   };
@@ -110,7 +121,7 @@ async function getDatabaseCalls(sql) {
     SELECT *
     FROM call_records
     ORDER BY created_at DESC
-    LIMIT 1000
+    LIMIT 10000
   `;
   return rows.map(normalizedDatabaseCall);
 }
@@ -143,6 +154,9 @@ async function upsertDatabaseCall(sql, callData) {
         recording_url = ${merged.recording_url || null},
         transcript = ${merged.transcript || null},
         status = ${merged.status || 'unknown'},
+        monthly_turnover = ${merged.monthly_turnover || null},
+        fund_required = ${merged.fund_required || null},
+        nature_of_business = ${merged.nature_of_business || null},
         created_at = ${merged.created_at || existing.created_at || new Date().toISOString()},
         ended_at = ${merged.ended_at || null}
       WHERE id = ${existing.id}
@@ -155,7 +169,9 @@ async function upsertDatabaseCall(sql, callData) {
     INSERT INTO call_records (
       snapserve_call_id, agent_id, agent_name, phone, from_number, to_number,
       call_type, disposition, cost, student_name, course, duration, summary,
-      success_evaluation, recording_url, transcript, status, created_at, ended_at
+      success_evaluation, recording_url, transcript, status,
+      monthly_turnover, fund_required, nature_of_business,
+      created_at, ended_at
     ) VALUES (
       ${snapserveId || null}, ${merged.agent_id || null}, ${merged.agent_name || null},
       ${merged.phone || null}, ${merged.from_number || null}, ${merged.to_number || null},
@@ -164,6 +180,7 @@ async function upsertDatabaseCall(sql, callData) {
       ${Number(merged.duration) || 0}, ${merged.summary || null},
       ${merged.success_evaluation || null}, ${merged.recording_url || null},
       ${merged.transcript || null}, ${merged.status || 'unknown'},
+      ${merged.monthly_turnover || null}, ${merged.fund_required || null}, ${merged.nature_of_business || null},
       ${merged.created_at || new Date().toISOString()}, ${merged.ended_at || null}
     ) RETURNING *
   `;
