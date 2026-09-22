@@ -352,24 +352,6 @@ async function upsertCall(callsPath, callData) {
 
 async function upsertCallsBulk(callsPath, callsArray) {
   if (!Array.isArray(callsArray) || callsArray.length === 0) return [];
-  const sql = database();
-  if (sql) {
-    let savedAny = false;
-    const results = [];
-    for (const callData of callsArray) {
-      try {
-        const saved = await upsertDatabaseCall(sql, callData);
-        if (saved) {
-          results.push(saved);
-          savedAny = true;
-        }
-      } catch (err) {
-        console.warn('Individual db upsert notice:', err.message);
-      }
-    }
-    if (savedAny) return results;
-  }
-
   const resolvedPath = resolveCallsPath(callsPath);
   await ensureCallsFile(resolvedPath);
   const calls = await getCalls(resolvedPath);
@@ -399,7 +381,7 @@ async function upsertCallsBulk(callsPath, callsArray) {
         call_type: 'Live Call',
         disposition: '',
         cost: '',
-        student_name: '',
+        student_name: 'Customer',
         course: '',
         duration: 0,
         summary: '',
@@ -418,6 +400,19 @@ async function upsertCallsBulk(callsPath, callsArray) {
   }
 
   await writeCalls(resolvedPath, calls);
+
+  const sql = database();
+  if (sql) {
+    const syncDb = async () => {
+      const batchSize = 15;
+      for (let i = 0; i < callsArray.length; i += batchSize) {
+        const slice = callsArray.slice(i, i + batchSize);
+        await Promise.all(slice.map(c => upsertDatabaseCall(sql, c).catch(() => null)));
+      }
+    };
+    syncDb().catch(e => console.warn('Background database bulk sync notice:', e.message));
+  }
+
   return calls;
 }
 

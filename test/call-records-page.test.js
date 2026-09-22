@@ -49,3 +49,22 @@ test('provides waveform player, turn-by-turn chat transcript, and summary modals
   assert.match(html, /id="summaryModal"/);
   assert.match(javascript, /WaveSurfer\.create/);
 });
+
+test('provides disposition quick buckets matching user mockup with badge counts', () => {
+  assert.match(html, /id="dispBucketCountAll"/);
+  assert.match(html, /id="dispBucketCountInterested"/);
+  assert.match(html, /id="dispBucketCountCallback"/);
+  assert.match(html, /id="dispBucketCountVoicemail"/);
+  assert.match(html, /id="dispBucketCountNotInterested"/);
+  assert.match(html, /id="dispBucketCountFailed"/);
+});
+
+test('provides both Excel spreadsheet (.xls) and CSV exports', () => {
+  assert.match(html, /id="exportCallsBtn"/);
+  assert.match(html, /id="exportCsvBtn"/);
+  assert.match(javascript, /exportExcel\(\)/);
+  assert.match(javascript, /exportCsv\(\)/);
+  assert.match(javascript, /application\/vnd\.ms-excel/);
+  assert.match(javascript, /text\/csv/);
+});
+

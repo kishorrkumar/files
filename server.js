@@ -274,15 +274,21 @@ async function syncRemoteCalls(apiKey) {
   try {
     let remotePayload;
     if (String(process.env.SNAPSERVE_MCP_ENABLED || '').toLowerCase() === 'true') {
-      const mcpPromise = callSnapServeTool('snapserve_list_calls', { limit: 500 });
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MCP sync timeout')), 3500));
-      remotePayload = await Promise.race([mcpPromise, timeoutPromise]);
-    } else {
+      try {
+        const mcpPromise = callSnapServeTool('snapserve_list_calls', { limit: 500 });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('MCP sync timeout')), 3500));
+        remotePayload = await Promise.race([mcpPromise, timeoutPromise]);
+      } catch (mcpErr) {
+        console.warn('MCP call list notice, falling back to REST API:', mcpErr.message);
+      }
+    }
+
+    if (!remotePayload) {
       const snapserveBaseUrl = process.env.SNAPSERVE_BASE_URL ||
         process.env.SNAPSERVE_API_BASE_URL || process.env.SNAPSERVE_API_URL ||
         'https://app.snapserve.ai/api';
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
       try {
         const response = await fetch(`${snapserveBaseUrl.replace(/\/$/, '')}/calls?limit=500`, {
           headers: {
@@ -293,7 +299,11 @@ async function syncRemoteCalls(apiKey) {
         });
         if (response.ok) {
           remotePayload = await response.json();
+        } else {
+          console.warn(`SnapServe /calls responded with status ${response.status}`);
         }
+      } catch (httpErr) {
+        console.warn('SnapServe REST call fetch notice:', httpErr.message);
       } finally {
         clearTimeout(timeoutId);
       }
@@ -303,8 +313,9 @@ async function syncRemoteCalls(apiKey) {
       const snapserveCalls = callsFromResponse(remotePayload);
       if (snapserveCalls.length > 0) {
         const normalized = snapserveCalls.map(c => callFromPayload(c));
-        await upsertCallsBulk(CALLS_PATH, normalized);
-        memoryCallsCache = null; // Invalidate cache so fresh data is read
+        const savedCalls = await upsertCallsBulk(CALLS_PATH, normalized);
+        memoryCallsCache = savedCalls;
+        lastCacheTime = Date.now();
       }
     }
   } catch (syncErr) {
@@ -322,8 +333,8 @@ app.get('/calls', requireAdmin, async (req, res) => {
       if (req.query.sync === 'true') {
         await Promise.race([
           syncRemoteCalls(apiKey),
-          new Promise((resolve) => setTimeout(resolve, 2000))
-        ]);
+          new Promise((resolve) => setTimeout(resolve, 3500))
+        ]).catch((e) => console.warn('Sync notice:', e.message));
       } else {
         setImmediate(() => syncRemoteCalls(apiKey).catch(() => {}));
       }

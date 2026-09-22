@@ -19,6 +19,22 @@ function normalizeCallStatus(status, call = {}) {
     : (normalized || 'unknown');
 }
 
+function extractDispositionValue(val) {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'object') {
+    if (val.disposition) return String(val.disposition).trim();
+    if (val.outcome) return String(val.outcome).trim();
+    if (val.result) return String(val.result).trim();
+    if (val.category) return String(val.category).trim();
+    if (val.label) return String(val.label).trim();
+    if (val.status) return String(val.status).trim();
+    const str = Object.values(val).find(v => typeof v === 'string' && v.trim());
+    if (str) return str.trim();
+  }
+  return String(val).trim();
+}
+
 function callFromPayload(body = {}) {
   const call = body.call || body.payload?.call || body.payload || body;
   const metadata = call.metadata || body.metadata || body.payload?.metadata || {};
@@ -44,12 +60,27 @@ function callFromPayload(body = {}) {
   const callType = call.callType || call.call_type || call.type || body.callType || body.call_type ||
     (call.campaignId || call.campaign_id ? 'Campaign' : 'Live Call');
   
-  // SnapServe API returns dispositionResult (e.g. "Interested", "Call Back Requested", etc.)
-  const disposition = String(
+  // SnapServe API returns dispositionResult (string or object like { disposition: "Interested" })
+  let disposition = extractDispositionValue(
     call.dispositionResult || call.disposition_result || body.dispositionResult || body.disposition_result ||
     call.disposition || call.disposition_tag || call.dispositionName || call.disposition_name ||
     call.analysis?.disposition || body.disposition || body.disposition_tag || body.analysis?.disposition || ''
-  ).trim();
+  );
+
+  const evalResult = call.successEvaluation || call.success_evaluation || body.successEvaluation || body.success_evaluation || body.analysis?.successEvaluation || '';
+  const callStatus = normalizeCallStatus(call.status || body.status || body.call_status || body.callStatus || body.event || body.type, {
+    duration,
+    summary,
+    transcript,
+    recording_url: recordingUrl
+  });
+
+  if (!disposition || disposition === '—') {
+    const detected = categorizeDisposition('', callStatus, summary, evalResult, transcript);
+    if (detected && detected.label && detected.label !== 'Uncategorized') {
+      disposition = detected.label;
+    }
+  }
 
   let cost = call.cost ?? call.callCost ?? call.call_cost ?? body.cost ?? body.callCost ?? '';
   const costCents = call.costCents ?? call.cost_cents ?? body.costCents ?? body.cost_cents;
@@ -68,8 +99,17 @@ function callFromPayload(body = {}) {
     }
   }
 
-  const snapserveCallId = String(call.executionId || call.execution_id || call.exec_id ||
-    call.id || call.callId || call.call_id || body.executionId || body.execution_id || body.callId || body.id || '');
+  let snapserveCallId = String(call.executionId || call.execution_id || call.exec_id ||
+    call.id || call.callId || call.call_id || body.executionId || body.execution_id || body.callId || body.id || '').trim();
+  if (snapserveCallId && !snapserveCallId.startsWith('exec_') && !isNaN(Number(snapserveCallId))) {
+    // If it's a numeric ID, we still preserve it, but prioritize executionId if provided
+    snapserveCallId = call.executionId || body.executionId || snapserveCallId;
+  }
+
+  const studentName = call.studentName || call.student_name || call.customerName || call.customer_name ||
+    call.leadName || call.lead_name || call.name || body.studentName || body.student_name || body.customerName ||
+    body.customer_name || body.leadName || body.lead_name || metadata.name || metadata.student_name ||
+    variables.name || variables.student_name || 'Customer';
 
   return {
     snapserve_call_id: snapserveCallId,
@@ -81,23 +121,15 @@ function callFromPayload(body = {}) {
     call_type: callType,
     disposition: disposition,
     cost: String(cost || ''),
-    student_name: call.studentName || call.student_name || call.customerName || call.customer_name ||
-      call.leadName || call.lead_name || body.studentName || body.student_name || body.customerName ||
-      body.customer_name || body.leadName || body.lead_name || metadata.name || metadata.student_name ||
-      variables.name || variables.student_name || '',
+    student_name: studentName,
     course: call.course || call.courseName || call.course_name || body.course || body.courseName ||
       body.course_name || metadata.course || variables.course || '',
     duration,
     summary,
-    success_evaluation: call.successEvaluation || call.success_evaluation || body.successEvaluation || body.success_evaluation || body.analysis?.successEvaluation || '',
+    success_evaluation: evalResult,
     recording_url: recordingUrl,
     transcript,
-    status: normalizeCallStatus(call.status || body.status || body.call_status || body.callStatus || body.event || body.type, {
-      duration,
-      summary,
-      transcript,
-      recording_url: recordingUrl
-    }),
+    status: callStatus,
     created_at: call.createdAt || call.created_at || call.startedAt || body.createdAt || body.created_at || '',
     ended_at: call.endedAt || call.ended_at || body.endedAt || body.ended_at || ''
   };
@@ -113,8 +145,8 @@ function callsFromResponse(payload) {
   return [];
 }
 
-function categorizeDisposition(rawDisposition, status = '', summary = '', evalResult = '') {
-  const text = `${rawDisposition || ''} ${evalResult || ''} ${summary || ''} ${status || ''}`.toLowerCase();
+function categorizeDisposition(rawDisposition, status = '', summary = '', evalResult = '', transcript = '') {
+  const text = `${rawDisposition || ''} ${evalResult || ''} ${summary || ''} ${status || ''} ${transcript || ''}`.toLowerCase();
   
   if (text.includes('not interested') || text.includes('not_interested') || text.includes('rejected') || text.includes('wrong number') || text.includes('do not call')) {
     return {

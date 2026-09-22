@@ -30,11 +30,29 @@ class DispositionService {
       class: 'disp-interested',
       icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
     },
-    followup: {
-      key: 'followup',
-      label: 'Follow Up',
+    callback: {
+      key: 'callback',
+      label: 'Call Back Requested',
       class: 'disp-followup',
       icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
+    },
+    followup: {
+      key: 'callback',
+      label: 'Call Back Requested',
+      class: 'disp-followup',
+      icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
+    },
+    voicemail: {
+      key: 'voicemail',
+      label: 'No Answer / Voicemail',
+      class: 'disp-noanswer',
+      icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l2.48-2.48a1 1 0 0 1 1.05-.24 11.2 11.2 0 0 0 3.5.56 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h4.5a1 1 0 0 1 1 1 11.2 11.2 0 0 0 .56 3.5 1 1 0 0 1-.24 1.05z"/><line x1="23" y1="1" x2="1" y2="23"/></svg>`
+    },
+    noanswer: {
+      key: 'voicemail',
+      label: 'No Answer / Voicemail',
+      class: 'disp-noanswer',
+      icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l2.48-2.48a1 1 0 0 1 1.05-.24 11.2 11.2 0 0 0 3.5.56 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h4.5a1 1 0 0 1 1 1 11.2 11.2 0 0 0 .56 3.5 1 1 0 0 1-.24 1.05z"/><line x1="23" y1="1" x2="1" y2="23"/></svg>`
     },
     notinterested: {
       key: 'notinterested',
@@ -42,16 +60,10 @@ class DispositionService {
       class: 'disp-notinterested',
       icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
     },
-    noanswer: {
-      key: 'noanswer',
-      label: 'No Answer',
-      class: 'disp-noanswer',
-      icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l2.48-2.48a1 1 0 0 1 1.05-.24 11.2 11.2 0 0 0 3.5.56 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h4.5a1 1 0 0 1 1 1 11.2 11.2 0 0 0 .56 3.5 1 1 0 0 1-.24 1.05z"/><line x1="23" y1="1" x2="1" y2="23"/></svg>`
-    },
     converted: {
-      key: 'converted',
-      label: 'Converted',
-      class: 'disp-converted',
+      key: 'interested',
+      label: 'Interested',
+      class: 'disp-interested',
       icon: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
     },
     failed: {
@@ -63,31 +75,33 @@ class DispositionService {
   };
 
   static detect(call) {
+    if (!call) return 'interested';
     const rawDisp = String(call.disposition || call.dispositionResult || '').toLowerCase();
     const evalStr = String(call.success_evaluation || '').toLowerCase();
     const summaryStr = String(call.summary || '').toLowerCase();
     const statusStr = String(call.status || '').toLowerCase();
-    const combined = `${rawDisp} ${evalStr} ${summaryStr} ${statusStr}`;
+    const transcriptStr = String(call.transcript || '').toLowerCase();
+    const combined = `${rawDisp} ${evalStr} ${summaryStr} ${statusStr} ${transcriptStr}`;
 
-    if (combined.includes('not interested') || combined.includes('not_interested') || combined.includes('rejected') || combined.includes('do not call')) {
+    if (combined.includes('not interested') || combined.includes('not_interested') || combined.includes('rejected') || combined.includes('wrong number') || combined.includes('do not call')) {
       return 'notinterested';
     }
-    if (combined.includes('call back') || combined.includes('callback') || combined.includes('follow up') || combined.includes('followup') || combined.includes('reschedule')) {
-      return 'followup';
+    if (combined.includes('call back') || combined.includes('callback') || combined.includes('follow up') || combined.includes('followup') || combined.includes('reschedule') || combined.includes('call later')) {
+      return 'callback';
     }
-    if (combined.includes('converted') || combined.includes('enrolled') || summaryStr.includes('converted') || summaryStr.includes('enrolled')) {
-      return 'converted';
-    }
-    if (combined.includes('interested') || combined.includes('passed') || combined.includes('success') || combined.includes('true')) {
-      return 'interested';
-    }
-    if (statusStr === 'failed' || statusStr === 'error' || combined.includes('failed') || combined.includes('timeout')) {
+    if (statusStr === 'failed' || statusStr === 'error' || combined.includes('failed') || combined.includes('timeout') || combined.includes('dropped')) {
       return 'failed';
     }
-    if (statusStr === 'no-answer' || statusStr === 'no_answer' || statusStr === 'busy' || statusStr === 'no-pickup' || combined.includes('no answer') || combined.includes('no pickup') || combined.includes('voicemail')) {
-      return 'noanswer';
+    if (statusStr === 'no-pickup' || statusStr === 'no_pickup' || statusStr === 'no_answer' || statusStr === 'no-answer' || statusStr === 'busy' || combined.includes('no answer') || combined.includes('no pickup') || combined.includes('voicemail') || combined.includes('unreachable')) {
+      return 'voicemail';
     }
-    return rawDisp ? 'interested' : (Number(call.duration || 0) > 0 ? 'interested' : 'noanswer');
+    if (combined.includes('interested') || combined.includes('enrolled') || combined.includes('converted') || combined.includes('passed') || combined.includes('success') || evalStr.includes('pass') || combined.includes('demo') || combined.includes('joined')) {
+      return 'interested';
+    }
+    if (Number(call.duration || 0) > 0) {
+      return 'interested';
+    }
+    return 'voicemail';
   }
 
   static renderPill(dispositionKey) {
@@ -105,12 +119,13 @@ class DispositionService {
 // 3. API Service (Single Responsibility: Network Layer with Timeout Guard)
 // ============================================================================
 class CallApiService {
-  static async fetchCalls(timeoutMs = 7000) {
+  static async fetchCalls(timeoutMs = 15000, sync = false) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch('/calls', {
+      const url = '/calls' + (sync ? '?sync=true' : '');
+      const response = await fetch(url, {
         headers: { 'Accept': 'application/json' },
         signal: controller.signal
       });
@@ -168,9 +183,19 @@ class CallFilterEngine {
   }
 
   static apply(calls, criteria) {
-    const { query, status, agent, disposition, dateRange, sort } = criteria;
+    const { query, status, agent, disposition, dateRange, sort, tab } = criteria;
 
     let result = calls.filter(call => {
+      // Subtab check (Calls, Callbacks, Transfers)
+      if (tab === 'callbacks') {
+        const dKey = DispositionService.detect(call);
+        if (dKey !== 'callback') return false;
+      } else if (tab === 'transfers') {
+        const cType = String(call.call_type || '').toLowerCase();
+        const cStat = String(call.status || '').toLowerCase();
+        if (!cType.includes('transfer') && !cStat.includes('transfer')) return false;
+      }
+
       const callId = call.snapserve_call_id || call.id || '';
       const agentName = call.agent_name || call.agent_id || '';
       const fromPhone = call.from_number || '';
@@ -179,19 +204,31 @@ class CallFilterEngine {
       const callStatus = call.status || '';
       const callDisp = call.disposition || '';
       const studentName = call.student_name || '';
+      const summary = typeof call.summary === 'string' ? call.summary : '';
 
-      const haystack = [callId, agentName, fromPhone, toPhone, callType, callStatus, callDisp, studentName].join(' ').toLowerCase();
+      const haystack = [callId, agentName, fromPhone, toPhone, callType, callStatus, callDisp, studentName, summary].join(' ').toLowerCase();
 
       const searchMatch = !query || haystack.includes(query.toLowerCase());
       const statusMatch = !status || String(callStatus).toLowerCase() === status.toLowerCase();
       const agentMatch = !agent || agentName.toLowerCase() === agent.toLowerCase();
       
       let dispMatch = true;
-      if (disposition) {
-        const normFilter = disposition.toLowerCase().replace(/[\s_]+/g, '');
-        const normCall = callDisp.toLowerCase().replace(/[\s_]+/g, '');
-        dispMatch = normCall.includes(normFilter) || normFilter.includes(normCall) ||
-          (disposition === 'call_back_requested' && (normCall.includes('callback') || normCall.includes('call back')));
+      if (disposition && disposition !== 'all') {
+        const detectedKey = DispositionService.detect(call);
+        const filterKey = disposition.toLowerCase().replace(/[\s_-]+/g, '');
+        if (filterKey === 'interested') {
+          dispMatch = detectedKey === 'interested';
+        } else if (filterKey === 'callback' || filterKey === 'callbacks' || filterKey === 'callbackrequested') {
+          dispMatch = detectedKey === 'callback';
+        } else if (filterKey === 'voicemail' || filterKey === 'noanswer' || filterKey === 'noanswervoicemail') {
+          dispMatch = detectedKey === 'voicemail';
+        } else if (filterKey === 'notinterested') {
+          dispMatch = detectedKey === 'notinterested';
+        } else if (filterKey === 'failed') {
+          dispMatch = detectedKey === 'failed';
+        } else {
+          dispMatch = detectedKey === filterKey || String(call.disposition || '').toLowerCase().includes(filterKey);
+        }
       }
 
       const dateMatch = this.isWithinDateRange(call.created_at || call.ended_at, dateRange);
@@ -216,18 +253,21 @@ class CallFilterEngine {
 }
 
 // ============================================================================
-// 5. Metrics View (5 Metrics Cards Matching Screenshot)
+// 5. Metrics View (5 Metrics Cards + Quick Buckets Matching Screenshots)
 // ============================================================================
 class MetricsView {
-  static update(calls) {
-    const total = calls.length;
+  static update(calls, allCalls) {
+    const listForCards = calls;
+    const listForBuckets = allCalls || calls;
+
+    const total = listForCards.length;
     let completed = 0;
     let voicemail = 0;
     let failed = 0;
     let totalDuration = 0;
     let durationCount = 0;
 
-    calls.forEach(call => {
+    listForCards.forEach(call => {
       const status = String(call.status || '').toLowerCase();
       const disp = String(call.disposition || '').toLowerCase();
       const dur = Number(call.duration) || 0;
@@ -261,6 +301,37 @@ class MetricsView {
     if (elVoicemail) elVoicemail.textContent = voicemail;
     if (elFailed) elFailed.textContent = failed;
     if (elAvgDur) elAvgDur.textContent = `${avgDur}s`;
+
+    // Update Quick Buckets
+    const bucketCounts = {
+      all: listForBuckets.length,
+      interested: 0,
+      callback: 0,
+      voicemail: 0,
+      notinterested: 0,
+      failed: 0
+    };
+
+    listForBuckets.forEach(call => {
+      const key = DispositionService.detect(call);
+      if (bucketCounts[key] !== undefined) {
+        bucketCounts[key]++;
+      }
+    });
+
+    const bAll = DOM.byId('dispBucketCountAll');
+    const bInterested = DOM.byId('dispBucketCountInterested');
+    const bCallback = DOM.byId('dispBucketCountCallback');
+    const bVoicemail = DOM.byId('dispBucketCountVoicemail');
+    const bNotInterested = DOM.byId('dispBucketCountNotInterested');
+    const bFailed = DOM.byId('dispBucketCountFailed');
+
+    if (bAll) bAll.textContent = bucketCounts.all;
+    if (bInterested) bInterested.textContent = bucketCounts.interested;
+    if (bCallback) bCallback.textContent = bucketCounts.callback;
+    if (bVoicemail) bVoicemail.textContent = bucketCounts.voicemail;
+    if (bNotInterested) bNotInterested.textContent = bucketCounts.notinterested;
+    if (bFailed) bFailed.textContent = bucketCounts.failed;
   }
 }
 
@@ -268,6 +339,20 @@ class MetricsView {
 // 6. Table View (10 Columns Matching Screenshot)
 // ============================================================================
 class TableView {
+  static formatDate(value) {
+    if (!value) return '—';
+    const { date, time } = this.formatDateParts(value);
+    return date !== '—' ? `${date} ${time}` : '—';
+  }
+
+  static formatDuration(seconds) {
+    const s = Number(seconds) || 0;
+    const mins = Math.floor(s / 60);
+    const rem = s % 60;
+    if (mins === 0) return `${rem}s`;
+    return `${mins}m ${rem}s`;
+  }
+
   static formatDateParts(value) {
     if (!value) return { date: '—', time: '—' };
     const date = new Date(value);
@@ -346,12 +431,12 @@ class TableView {
     container.innerHTML = calls.map((call, idx) => {
       const callId = call.snapserve_call_id || call.id || '—';
       const agentName = call.agent_name || call.agent_id || 'Voice Agent';
+      const studentName = call.student_name || 'Customer';
       const fromPhone = call.from_number || '—';
       const toPhone = call.to_number || call.phone || '—';
       const callType = call.call_type || 'Live Call';
       const isCampaign = String(callType).toLowerCase().includes('campaign');
       const status = String(call.status || 'completed').toLowerCase();
-      const disposition = call.disposition || '';
       const dur = Number(call.duration) || 0;
       const cost = call.cost || '';
       const { date, time } = this.formatDateParts(call.created_at || call.ended_at);
@@ -363,7 +448,7 @@ class TableView {
 
       // Status Pill
       let statusBadge = '';
-      if (status === 'calling') {
+      if (status === 'calling' || status === 'ringing' || status === 'in_progress') {
         statusBadge = `<span class="status-pill status-calling"><span class="status-dot"></span>Calling</span>`;
       } else if (status === 'failed' || status === 'error') {
         statusBadge = `<span class="status-pill status-failed"><span class="status-dot"></span>Failed</span>`;
@@ -373,10 +458,9 @@ class TableView {
         statusBadge = `<span class="status-pill status-completed"><span class="status-dot"></span>Completed</span>`;
       }
 
-      // Disposition Pill
-      const dispBadge = disposition && disposition !== '—'
-        ? `<span class="disp-badge">${DOM.safe(disposition)}</span>`
-        : `<span class="table-dash">—</span>`;
+      // Disposition Pill (always rendered using normalized service, never empty dash)
+      const dispKey = DispositionService.detect(call);
+      const dispBadge = DispositionService.renderPill(dispKey);
 
       // Duration
       const durationStr = (status === 'calling' || status === 'failed' || dur <= 0)
@@ -384,7 +468,7 @@ class TableView {
         : `${dur}s`;
 
       // Cost
-      const costStr = (cost && cost !== '—' && cost !== '0' && cost !== '₹0.00')
+      const costStr = (cost && cost !== '—' && cost !== '0' && cost !== '₹0.00' && cost !== '$0.00')
         ? `<span class="cost-cell">${DOM.safe(cost)}</span>`
         : `<span class="table-dash">—</span>`;
 
@@ -405,7 +489,10 @@ class TableView {
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
               </span>
-              <span class="agent-cell-name">${DOM.safe(agentName)}</span>
+              <div>
+                <span class="agent-cell-name">${DOM.safe(agentName)}</span>
+                <span style="display:block;font-size:0.75rem;color:var(--apple-label-tertiary);">${DOM.safe(studentName)}</span>
+              </div>
             </div>
           </td>
           <td><span class="phone-cell">${DOM.safe(fromPhone)}</span></td>
@@ -558,6 +645,7 @@ class CallRecordsApp {
     this.callDateRangeFilter = DOM.byId('callDateRangeFilter');
     this.callSortFilter = DOM.byId('callSortFilter');
     this.exportCallsBtn = DOM.byId('exportCallsBtn');
+    this.exportCsvBtn = DOM.byId('exportCsvBtn');
     this.clearCallFilters = DOM.byId('clearCallFilters');
     this.callResultCount = DOM.byId('callResultCount');
     this.callsBody = DOM.byId('callsBody');
@@ -569,10 +657,16 @@ class CallRecordsApp {
     this.copyTranscriptBtn = DOM.byId('copyTranscriptBtn');
 
     this.summaryModal = DOM.byId('summaryModal');
+    this.activeTab = 'calls';
   }
 
   bindEvents() {
-    const handleFilterChange = () => this.filterAndRender();
+    const handleFilterChange = () => {
+      const val = this.callDispositionFilter.value || 'all';
+      const bucketBtns = document.querySelectorAll('.disp-bucket-btn');
+      bucketBtns.forEach(b => b.classList.toggle('active', (b.dataset.disp || 'all') === val));
+      this.filterAndRender();
+    };
 
     this.callSearch.addEventListener('input', handleFilterChange);
     this.callStatusFilter.addEventListener('change', handleFilterChange);
@@ -581,6 +675,18 @@ class CallRecordsApp {
     this.callDateRangeFilter.addEventListener('change', handleFilterChange);
     this.callSortFilter.addEventListener('change', handleFilterChange);
 
+    // Quick Bucket Buttons
+    const bucketBtns = document.querySelectorAll('.disp-bucket-btn');
+    bucketBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        bucketBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const disp = btn.dataset.disp || 'all';
+        this.callDispositionFilter.value = disp === 'all' ? '' : disp;
+        this.filterAndRender();
+      });
+    });
+
     this.clearCallFilters.addEventListener('click', () => {
       this.callSearch.value = '';
       this.callStatusFilter.value = '';
@@ -588,6 +694,7 @@ class CallRecordsApp {
       this.callDispositionFilter.value = '';
       this.callDateRangeFilter.value = 'all';
       this.callSortFilter.value = 'newest';
+      bucketBtns.forEach(b => b.classList.toggle('active', (b.dataset.disp || 'all') === 'all'));
       this.filterAndRender();
     });
 
@@ -598,7 +705,12 @@ class CallRecordsApp {
       window.location.replace('/admin/login');
     });
 
-    this.exportCallsBtn.addEventListener('click', () => this.exportCsv());
+    if (this.exportCallsBtn) {
+      this.exportCallsBtn.addEventListener('click', () => this.exportExcel());
+    }
+    if (this.exportCsvBtn) {
+      this.exportCsvBtn.addEventListener('click', () => this.exportCsv());
+    }
 
     // Sub-Tabs Switching (Calls, Callbacks, Transfers)
     const subTabs = document.querySelectorAll('.sub-tab-btn');
@@ -606,12 +718,7 @@ class CallRecordsApp {
       tab.addEventListener('click', () => {
         subTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        const tabName = tab.dataset.tab;
-        if (tabName === 'callbacks') {
-          this.callDispositionFilter.value = 'call_back_requested';
-        } else {
-          this.callDispositionFilter.value = '';
-        }
+        this.activeTab = tab.dataset.tab || 'calls';
         this.filterAndRender();
       });
     });
@@ -676,12 +783,11 @@ class CallRecordsApp {
   }
 
   async loadData() {
-    // 1. Show Apple animated skeleton shimmer immediately (solves "loading always" static freeze)
     TableView.renderSkeleton(this.callsBody);
     this.callResultCount.textContent = 'Loading call records…';
 
     try {
-      this.availableCalls = await CallApiService.fetchCalls(7000);
+      this.availableCalls = await CallApiService.fetchCalls(15000);
       this.populateDropdownFilters();
       this.filterAndRender();
     } catch (err) {
@@ -713,13 +819,14 @@ class CallRecordsApp {
       agent: this.callAgentFilter.value,
       disposition: this.callDispositionFilter.value,
       dateRange: this.callDateRangeFilter.value,
-      sort: this.callSortFilter.value
+      sort: this.callSortFilter.value,
+      tab: this.activeTab || 'calls'
     };
 
     this.visibleCalls = CallFilterEngine.apply(this.availableCalls, criteria);
 
-    // Update Apple Metrics Widgets
-    MetricsView.update(this.visibleCalls);
+    // Update Apple Metrics Widgets and Quick Buckets
+    MetricsView.update(this.visibleCalls, this.availableCalls);
 
     // Update Result Header
     const hasFilters = Boolean(criteria.query || criteria.status || criteria.agent ||
@@ -809,29 +916,224 @@ class CallRecordsApp {
     document.body.style.overflow = 'hidden';
   }
 
+  exportExcel() {
+    if (!this.visibleCalls.length) {
+      alert('No call records to export.');
+      return;
+    }
+
+    const xmlEscape = (str) => {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
+    const headers = [
+      'Date & Time',
+      'Call ID',
+      'Customer Name',
+      'Agent',
+      'From Number',
+      'To Number',
+      'Call Type',
+      'Status',
+      'Disposition',
+      'Duration (sec)',
+      'Cost',
+      'AI Summary',
+      'Recording URL'
+    ];
+
+    const rowsXml = this.visibleCalls.map(c => {
+      const dispKey = DispositionService.detect(c);
+      const dispConfig = DispositionService.CONFIG[dispKey] || DispositionService.CONFIG.interested;
+      const dispLabel = dispConfig.label;
+      const dateFormatted = TableView.formatDate(c.created_at || c.ended_at);
+      const dur = Number(c.duration) || 0;
+
+      let styleId = 'Default';
+      if (dispKey === 'interested') styleId = 'InterestedStyle';
+      else if (dispKey === 'callback') styleId = 'CallbackStyle';
+      else if (dispKey === 'voicemail') styleId = 'VoicemailStyle';
+      else if (dispKey === 'notinterested') styleId = 'NotInterestedStyle';
+      else if (dispKey === 'failed') styleId = 'FailedStyle';
+
+      return `
+    <Row ss:AutoFitHeight="0" ss:Height="22">
+      <Cell ss:StyleID="DateStyle"><Data ss:Type="String">${xmlEscape(dateFormatted)}</Data></Cell>
+      <Cell ss:StyleID="MonoStyle"><Data ss:Type="String">${xmlEscape(c.snapserve_call_id || c.id || '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.student_name || 'Customer')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.agent_name || c.agent_id || 'Voice Agent')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.from_number || '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.to_number || c.phone || '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.call_type || 'Live Call')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.status || 'completed')}</Data></Cell>
+      <Cell ss:StyleID="${styleId}"><Data ss:Type="String">${xmlEscape(dispLabel)}</Data></Cell>
+      <Cell ss:StyleID="NumberStyle"><Data ss:Type="Number">${dur}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.cost || '—')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(typeof c.summary === 'string' ? c.summary : '')}</Data></Cell>
+      <Cell ss:StyleID="Default"><Data ss:Type="String">${xmlEscape(c.recording_url || '')}</Data></Cell>
+    </Row>`;
+    }).join('\n');
+
+    const xmlTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>SnapServe Call Records</Title>
+  <Author>SnapServe Voice Intelligence</Author>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/>
+   </Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Color="#1D1D1F"/>
+  </Style>
+  <Style ss:ID="Header">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#000000"/>
+   </Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1D1D1F" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="DateStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Color="#6E6E73"/>
+  </Style>
+  <Style ss:ID="MonoStyle">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="SF Mono, Consolas, monospace" ss:Size="9" ss:Color="#0071E3"/>
+  </Style>
+  <Style ss:ID="NumberStyle">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#1D1D1F"/>
+   <NumberFormat ss:Format="#,##0"/>
+  </Style>
+  <Style ss:ID="InterestedStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#1A8754"/>
+   <Interior ss:Color="#EBF9F1" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="CallbackStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#0071E3"/>
+   <Interior ss:Color="#EBF4FE" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="VoicemailStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#6E6E73"/>
+   <Interior ss:Color="#F5F5F7" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="NotInterestedStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#DE350B"/>
+   <Interior ss:Color="#FDF0ED" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="FailedStyle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E5E5EA"/></Borders>
+   <Font ss:FontName="Segoe UI, -apple-system, sans-serif" ss:Size="10" ss:Bold="1" ss:Color="#D97706"/>
+   <Interior ss:Color="#FFF3E8" ss:Pattern="Solid"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Call Records">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="130"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="140"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="260"/>
+   <Column ss:Width="180"/>
+   <Row ss:AutoFitHeight="0" ss:Height="26">
+    ${headers.map(h => `<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')}
+   </Row>
+   ${rowsXml}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xmlTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `call_records_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   exportCsv() {
     if (!this.visibleCalls.length) {
       alert('No call records to export.');
       return;
     }
 
-    const headers = ['Date', 'Call ID', 'Name', 'Agent', 'From', 'Call Type', 'Status', 'Disposition', 'Duration (s)'];
-    const rows = this.visibleCalls.map(c => [
-      TableView.formatDate(c.created_at || c.ended_at),
-      c.snapserve_call_id || c.id || '',
-      c.student_name || 'Customer',
-      c.agent_name || c.agent_id || '',
-      c.phone || '',
-      'Outbound',
-      c.status || 'completed',
-      DispositionService.detect(c),
-      c.duration || 0
-    ]);
+    const headers = [
+      'Date & Time',
+      'Call ID',
+      'Customer Name',
+      'Agent',
+      'From Number',
+      'To Number',
+      'Call Type',
+      'Status',
+      'Disposition',
+      'Duration (sec)',
+      'Cost',
+      'Summary',
+      'Recording URL'
+    ];
 
-    const csvContent = [
+    const rows = this.visibleCalls.map(c => {
+      const dispKey = DispositionService.detect(c);
+      const dispConfig = DispositionService.CONFIG[dispKey] || DispositionService.CONFIG.interested;
+      return [
+        TableView.formatDate(c.created_at || c.ended_at),
+        c.snapserve_call_id || c.id || '',
+        c.student_name || 'Customer',
+        c.agent_name || c.agent_id || 'Voice Agent',
+        c.from_number || '',
+        c.to_number || c.phone || '',
+        c.call_type || 'Live Call',
+        c.status || 'completed',
+        dispConfig.label,
+        c.duration || 0,
+        c.cost || '',
+        typeof c.summary === 'string' ? c.summary.replace(/[\r\n]+/g, ' ') : '',
+        c.recording_url || ''
+      ];
+    });
+
+    const csvContent = '\uFEFF' + [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+      ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -841,6 +1143,7 @@ class CallRecordsApp {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 }
 

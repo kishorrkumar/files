@@ -126,6 +126,34 @@
 
     <!-- Call Records Main Surface -->
     <article class="surface call-records-surface">
+      <!-- Disposition Category Quick Buckets matching user mockup -->
+      <div class="disposition-buckets-bar" role="tablist" aria-label="Disposition Filter Buckets">
+        <button class="disp-bucket-btn active" type="button" data-disp="all">
+          <span class="disp-bucket-label">All</span>
+          <span class="disp-bucket-badge" id="dispBucketCountAll">0</span>
+        </button>
+        <button class="disp-bucket-btn bucket-interested" type="button" data-disp="interested">
+          <span class="disp-bucket-label">Interested</span>
+          <span class="disp-bucket-badge" id="dispBucketCountInterested">0</span>
+        </button>
+        <button class="disp-bucket-btn bucket-callback" type="button" data-disp="callback">
+          <span class="disp-bucket-label">Callbacks</span>
+          <span class="disp-bucket-badge" id="dispBucketCountCallback">0</span>
+        </button>
+        <button class="disp-bucket-btn bucket-voicemail" type="button" data-disp="voicemail">
+          <span class="disp-bucket-label">No Answer / Voicemail</span>
+          <span class="disp-bucket-badge" id="dispBucketCountVoicemail">0</span>
+        </button>
+        <button class="disp-bucket-btn bucket-notinterested" type="button" data-disp="notinterested">
+          <span class="disp-bucket-label">Not Interested</span>
+          <span class="disp-bucket-badge" id="dispBucketCountNotInterested">0</span>
+        </button>
+        <button class="disp-bucket-btn bucket-failed" type="button" data-disp="failed">
+          <span class="disp-bucket-label">Failed</span>
+          <span class="disp-bucket-badge" id="dispBucketCountFailed">0</span>
+        </button>
+      </div>
+
       <!-- Filter Toolbar matching user screenshot -->
       <div class="records-filter-toolbar" aria-label="Call record filters">
         <div class="filter-search-wrap">
@@ -150,10 +178,11 @@
 
           <select id="callDispositionFilter" class="toolbar-select active-focus" aria-label="Filter by disposition">
             <option value="">All dispositions</option>
-            <option value="call_back_requested">Call Back Requested</option>
-            <option value="no_answer">No_answer</option>
             <option value="interested">Interested</option>
-            <option value="not_interested">Not Interested</option>
+            <option value="callback">Call Back Requested</option>
+            <option value="voicemail">No Answer / Voicemail</option>
+            <option value="notinterested">Not Interested</option>
+            <option value="failed">Failed</option>
           </select>
 
           <div class="date-range-btn-wrap">
@@ -179,12 +208,21 @@
             <option value="duration_asc">Duration: Shortest</option>
           </select>
 
-          <button id="exportCallsBtn" class="toolbar-btn export-btn" type="button">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export
-          </button>
+          <div class="export-actions-group">
+            <button id="exportCallsBtn" class="toolbar-btn export-btn" type="button" title="Export to Excel Spreadsheet (.xls)">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <line x1="10" y1="9" x2="8" y2="9"/>
+              </svg>
+              Export
+            </button>
+            <button id="exportCsvBtn" class="toolbar-btn export-btn-secondary" type="button" title="Export as CSV">
+              CSV
+            </button>
+          </div>
         </div>
       </div>
 
